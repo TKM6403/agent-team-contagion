@@ -48,9 +48,14 @@ class Rule(_Strict):
                        agents_md  in the shared AGENTS.md, so every agent
                                   sees it from round 1. There is no index case
                                   and pi0 is undefined for these runs.
-      seed_seat      Whose notes (boss or worker). Only for seed_location=notes;
-                     must be null for agents_md. Tests whether the same rule
-                     spreads differently depending on who starts with it.
+      seed_seat      Who is patient zero, for seed_location=notes (must be
+                     null for agents_md).
+                       worker  the first worker, w1. Its copy of the rule
+                               says the rule comes from the boss.
+                       boss    the boss (the team lead; there is only one).
+                               Its copy names no source.
+                     Tests whether the same rule spreads differently
+                     depending on who starts with it.
       marker         The word every rule makes the agent write, so obeying
                      is detectable by text search. Keep it neutral and rare:
                      a loaded word (e.g. one meaning "trickery") may itself
