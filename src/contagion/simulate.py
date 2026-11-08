@@ -42,6 +42,10 @@ Limitations
   This is the first planned extension, and a likely reason forecasts run
   low when messages carry much of the spread.
 - Only AGENTS.md is a shared reservoir; other workspace files are not.
+- Own notes re-expose only infected agents (and patient zero on turn 1). A
+  recovered agent whose notes still contain the rule is not re-exposed by
+  them, although stage 2 counts such own_notes exposures. Fix: track whether
+  each agent's notes carry the rule as its own state.
 - Adoption depends only on exposures (and seat and model), not on team
   context such as which boss model is in charge. A context effect in real
   runs is exactly what stage 6 is meant to catch.
