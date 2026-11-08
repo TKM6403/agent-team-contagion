@@ -19,6 +19,8 @@ from typing import Literal, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from contagion.rules import Ladder, load_ladder
+
 Model = Literal["haiku", "sonnet", "opus"]  # aliases; each backend maps them to model ids
 
 
@@ -49,9 +51,14 @@ class Rule(_Strict):
       seed_seat      Whose notes (boss or worker). Only for seed_location=notes;
                      must be null for agents_md. Tests whether the same rule
                      spreads differently depending on who starts with it.
+      marker         The word every rule makes the agent write, so obeying
+                     is detectable by text search. Kept neutral by default;
+                     set CHICANERY to reproduce the original harness. Part of
+                     the hash, because the word itself may change adoption.
     """
 
     level: int = Field(ge=0)
+    marker: str = Field(default="KESTREL", pattern=r"^[A-Z][A-Z0-9]{3,19}$")
     seed_location: Literal["notes", "agents_md"] = "notes"
     seed_seat: Optional[Literal["boss", "worker"]] = "worker"
 
@@ -187,6 +194,9 @@ class Experiment(_Strict):
         return row
 
 
-def load_experiment(path: str | Path) -> Experiment:
-    """Read one YAML file and validate it. Raises pydantic.ValidationError on a bad config."""
-    return Experiment.model_validate(yaml.safe_load(Path(path).read_text()))
+def load_experiment(path: str | Path, ladder: Ladder | None = None) -> Experiment:
+    """Read one YAML file and validate it, including that rule.level exists in
+    the ladder. Raises pydantic.ValidationError or KeyError on a bad config."""
+    exp = Experiment.model_validate(yaml.safe_load(Path(path).read_text()))
+    (ladder or load_ladder()).get(exp.rule.level)
+    return exp

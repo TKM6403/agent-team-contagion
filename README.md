@@ -8,6 +8,10 @@ Project for the Apart Research [Swarm Alignment Hackathon](https://apartresearch
 
 | Folder | What is in it |
 |---|---|
+| `STAGES.md` | How the pipeline is organised: six stages, their inputs and outputs |
+| `experiment_configs/` | One YAML per experiment (stage 0 input) |
+| `rules/` | The rule ladder: what gets planted, by level |
+| `src/contagion/` | Pipeline code |
 | `report_materials/` | The research report (work in progress): LaTeX source, figures, and the built PDF |
 
 This repository is being organised for the submission; code, run data and a note on what was built before the sprint will be added here.
