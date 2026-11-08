@@ -2,7 +2,7 @@
 
 How the experiment is organised in code. Six stages after config, each with one job, a few arguments, and files in and out. Any stage can be re-run on its own from the files the previous stage wrote.
 
-Status: stage 0 is implemented; stages 1 to 6 are planned. This document changes as we build.
+Status: stages 0 and 1 are implemented; stages 2 to 6 are planned. This document changes as we build.
 
 ## Start here
 
@@ -42,7 +42,7 @@ flowchart LR
 | # | Stage | Job | Arguments | In -> out |
 |---|---|---|---|---|
 | 0 | `config` | Load and validate one experiment YAML against the schema and the rule ladder | - | `experiment_configs/<name>.yaml`, `rules/ladder.yaml` |
-| 1 | `run_agent_team` | Run the real team: one agent call per agent per round. Log every read, write and message, and the cost of every turn | `n_runs`, `jobs` (runs in parallel), `budget_usd`, `dry_run` | config -> `runs/<run_id>/{turns.jsonl, events.jsonl, snapshots/, cost.csv, config.yaml, backend.txt}` + one row in `runs.csv` |
+| 1 | `run_agent_team` | Run the real team: one agent call per agent per round. Log every read, write and message, and the cost of every turn | `n_runs`, `jobs` (runs in parallel), `budget_usd`, `dry_run` | config -> `runs/<run_id>/{events.jsonl, turns.jsonl, snapshots/, logs/, sandbox/, config.yaml, backend.txt}` + one row in `runs/runs.csv` |
 | 2 | `label_exposures` | (a) Rule-based triage of every text carrying the marker; (b) an LLM judge only for texts the rules can't classify (cached, so re-running is free); (c) build the tables | `judge_model`, `judge_scope` (`ambiguous`/`all`), `exposure_memory` (`new_only`/`all`) | runs -> `labels.csv`, `trials.csv`, `file_states.csv` |
 | 3 | `probability_fitter` | Estimate model parameters with honest uncertainty | `group_by`, `min_n`, `combine` (`independent`/`priority`), `uncertainty` (`run_bootstrap`/`beta`/`hierarchical`), `n_draws` | tables -> `params.parquet` (draws), `params_summary.csv` |
 | 4 | `simulate` | Chain-binomial Monte Carlo of a target config, which may never have been run. No agents | `params`, `config` (target), `n_sims`, `runs_per_cell`, `seed` | -> `forecast.csv` |
@@ -80,7 +80,29 @@ plumbing:
 - `experiment_hash()` identifies the exact config; `flat()` turns it into columns for `runs.csv`.
 - The ladder has levels 0 (harmless marker) to 3 (skip tests).
 
+## Stage 1: run_agent_team (implemented)
+
+```bash
+python -m contagion.run_agent_team experiment_configs/invite_on_sonnet.yaml --dry-run
+python -m contagion.run_agent_team experiment_configs/invite_on_sonnet.yaml --n-runs 8 --jobs 4 --budget-usd 10
+```
+
+- Turns inside a run are sequential (boss, then w1..wN, each round), so an agent can catch the rule from something written earlier in the same round. `--jobs` runs whole runs in parallel, each in its own sandbox.
+- The round structure lives in `play_rounds()` in `src/contagion/team/run.py`. Stage 4 will reuse it with a simulated turn in place of a real agent call, so the simulator follows exactly the same order.
+- `events.jsonl` records everything an agent could have been exposed to, each with a content hash and a marker flag: `notes` and `message` (pasted into its prompt), `read` (files it opened), `write` / `edit` (its tool calls), and `file_change` (net change per file over the turn, taken from the disk). Example:
+
+  ```json
+  {"round": 1, "agent": "w2", "kind": "read", "path": "workspace/AGENTS.md", "content_hash": "f4a80246a707", "has_marker": true}
+  ```
+
+- Read hashes are computed the same way for every backend: start from the sandbox before the turn and replay the agent's tool calls in order. Only one agent acts at a time, so this is exactly what it saw. If the replay doesn't match the disk at the end of the turn (a tool call that errored, or a file changed with no tool call naming it), a `replay_mismatch` event flags that file for that turn; the disk stays the ground truth.
+- `turns.jsonl` has one row per turn (tokens, cost, error). A failed turn stops the run and marks it `truncated`.
+- `--budget-usd`: a run starts only if its estimated cost fits; runs that don't fit are skipped, never started and cut off.
+- Backends (`src/contagion/backends/`): `claude_cli` and `anthropic_api` are implemented; `agent_sdk` is a documented stub.
+
 ## Provenance: linking results to configs
+
+- Planned: the experiment YAML will also carry an `analysis:` section (stage 2 and 3 settings such as `exposure_memory`), so one file reproduces the whole pipeline. It gets its own `analysis_hash`; `experiment_hash` covers only what is run, so runs can be pooled and re-analysed under different settings.
 
 - `experiment_hash`: 12-character hash of the full config. Same config, same hash; change anything (including `n_rounds` or the marker) and it changes.
 - `ladder_hash`: hash of the rule ladder, so editing a rung's wording is never silent.
@@ -139,6 +161,6 @@ The backend is recorded with every run. Results may not carry over between backe
 
 ## Implementation notes
 
-- `budget_usd`: estimate each run's cost before launch and only start runs that fit. Never cut a run off silently; truncated runs are flagged and left out of fits.
+- Truncated runs are flagged in `runs.csv` and left out of fits.
 - `adapters/` can convert run logs from other harnesses into `trials.csv` / `file_states.csv`, so external data can feed the fitter.
 - R0 is out of scope for v1.
