@@ -13,15 +13,30 @@ Each is "how often did X happen when it could have", smoothed with Beta(0.5, 0.5
               case's first turn. Event: state_after == I. Fitted jointly (see combine).
   gamma       an infected agent drops the rule, per turn.
               Rows: state_before == I. Event: state_after == S.
+              Grouped by whether AGENTS.md was marked at the start of the turn,
+              so wiping the file (clean_every_k) can change recovery.
   file_mark   an infected agent's turn marks a clean AGENTS.md.
               Rows: state_after == I and not file_marked_before. Event: file_marked_after.
   file_clean  an uninfected boss's turn cleans a marked AGENTS.md.
               Rows: seat == boss, state_after == S, file_marked_before.
               Event: not file_marked_after.
+  plan_mark   an infected boss's turn writes the rule into a clean PLAN.md.
+              Rows: seat == boss, state_after == I, not plan_marked_before.
+              Event: plan_marked_after.
+  plan_clean  an uninfected boss's turn removes the rule from PLAN.md.
+              Rows: seat == boss, state_after == S, plan_marked_before.
+              Event: not plan_marked_after.
+  msg_send    an infected agent sends at least one message carrying the rule.
+              Rows: state_after == I. Event: sent_marker_to is non-empty.
+              Recipients are not modelled: the simulator picks one teammate
+              uniformly at random.
 
 How to read the `group` column (fields joined by "|")
 -----------------------------------------------------
-  pi0, gamma, file_mark   <model>|<seat>                 e.g. sonnet|worker
+  pi0, file_mark,         <model>|<seat>                 e.g. sonnet|worker
+  msg_send
+  gamma                   <model>|<seat>|<AGENTS.md marked at turn start> e.g. sonnet|worker|True
+  plan_mark, plan_clean   <boss model>                   e.g. sonnet
   p_exposure              <model>|<seat>|<channel>:<source>
                           e.g. sonnet|worker|agents_md:boss = a Sonnet worker
                           exposed through AGENTS.md, in a version the boss wrote.
@@ -132,7 +147,13 @@ def fit_once(trials: pd.DataFrame, min_n: int) -> dict[str, dict]:
     return {
         "pi0": _rate(t, t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
         "p_exposure": fit_exposure(t, min_n),
-        "gamma": _rate(t, t.state_before == "I", lambda g: g.state_after == "S", ["model", "seat"]),
+        "gamma": _rate(t, t.state_before == "I", lambda g: g.state_after == "S",
+                       ["model", "seat", "file_marked_before"]),
+        "msg_send": _rate(t, t.state_after == "I", lambda g: g.sent_marker_to != "[]", ["model", "seat"]),
+        "plan_mark": _rate(t, (t.seat == "boss") & (t.state_after == "I") & ~t.plan_marked_before,
+                           lambda g: g.plan_marked_after, ["model"]),
+        "plan_clean": _rate(t, (t.seat == "boss") & (t.state_after == "S") & t.plan_marked_before,
+                            lambda g: ~g.plan_marked_after, ["model"]),
         "file_mark": _rate(t, (t.state_after == "I") & ~t.file_marked_before,
                            lambda g: g.file_marked_after, ["model", "seat"]),
         "file_clean": _rate(t, (t.seat == "boss") & (t.state_after == "S") & t.file_marked_before,
@@ -175,6 +196,7 @@ def main() -> None:
     (out / "meta.json").write_text(json.dumps({
         "combine": "independent", "uncertainty": "run_bootstrap", "n_draws": args.n_draws, "min_n": args.min_n,
         "training_runs": sorted(map(str, runs)),
+        "behaviour_keys": sorted(trials.behaviour_key.unique()),
         "label_settings": json.loads((Path(args.tables) / "settings.json").read_text())
         if (Path(args.tables) / "settings.json").exists() else None}, indent=1))
     print(pd.DataFrame(summ).to_string(index=False))

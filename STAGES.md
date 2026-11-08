@@ -142,6 +142,8 @@ Exposure type = (channel in {own_notes, agents_md, plan_md, message}, source_rol
 | `pi0` | index case adopts its own planted rule in turn 1 | model, seat |
 | `p_exposure` | adoption per new exposure of type k | target model, seat, channel, source_role |
 | `gamma` | infected agent drops the rule, per round | model, seat, file_marked |
+| `plan_mark` / `plan_clean` | infected boss writes the rule into PLAN.md / uninfected boss removes it | boss model |
+| `msg_send` | infected agent sends a rule-carrying message (recipient random in the sim) | model, seat |
 | `file_mark` | shared file becomes marked, per round, given an infected writer | writer seat x model |
 | `file_clean` | marked file gets cleaned, per round | boss model x `invite_sentence` |
 
@@ -165,8 +167,8 @@ The backend is recorded with every run. Results may not carry over between backe
 
 ## What `simulate` can and can't forecast (the research question)
 
-- **Can simulate** (structural knobs that rearrange measured pieces): team size, worker mix, seed seat (if measured), `clean_every_k`.
-- **Must measure** (behavioural knobs): a new rule level, a new model, new prompt wording, a seat never measured. `simulate` and `validate` warn or refuse when a target config needs a parameter group with no training data.
+- **Can simulate** (structural knobs that rearrange measured pieces): team size, worker mix, seed seat (if measured), `n_rounds`, `clean_every_k`, and `invite_sentence` / boss model for values seen in training. The simulator plays out every channel stage 2 counts for the shared files and messages: AGENTS.md, PLAN.md and messages.
+- **Must measure** (behavioural knobs): rule level, marker, task, backend, effort, max_turns, a new model, a seat never measured. `simulate` refuses a target whose behavioural knobs don't match a training config (`behaviour_key`), and warns or refuses when it needs a parameter group with no training data.
 - **Research question:** do per-exposure probabilities carry over across team configurations? This assumes adoption depends on exposures, not team context. A context effect (e.g. workers adopting from the same file more readily under one boss model than another) would break it, and `validate` is designed to catch that.
 - **Exploration loop:** sweep structural knobs in `simulate` to find critical points (e.g. the mix threshold f*, the wipe interval k*), then spend real budget only on `preregister` + `validate` of flagged configs, including one test aimed at where carry-over may break (a boss swap).
 - `simulate` accepts any `params` table, fitted or hand-written, so the estimator can be swapped.
