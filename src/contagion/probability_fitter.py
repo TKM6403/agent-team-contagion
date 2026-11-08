@@ -17,9 +17,15 @@ Each is "how often did X happen when it could have", smoothed with Beta(0.5, 0.5
               so wiping the file (clean_every_k) can change recovery.
   file_mark   an infected agent's turn marks a clean AGENTS.md.
               Rows: state_after == I and not file_marked_before. Event: file_marked_after.
-  file_clean  an uninfected boss's turn cleans a marked AGENTS.md.
-              Rows: seat == boss, state_after == S, file_marked_before.
-              Event: not file_marked_after.
+  file_clean  an uninfected agent's turn cleans a marked AGENTS.md (any seat).
+              Rows: state_after == S, file_marked_before. Event: not file_marked_after.
+  p_delayed   a susceptible agent that has seen the rule before adopts on a
+              turn with no new exposure (it changed its mind later).
+              Rows: state_before == S, n_new_exposures == 0, seen_rule_before,
+              not the index case's first turn. Event: state_after == I.
+  read_agents_md, read_plan_md
+              an agent opens that file on its turn (exposure through a file
+              needs a read). Rows: all turns. Event: the read happened.
   plan_mark   an infected boss's turn writes the rule into a clean PLAN.md.
               Rows: seat == boss, state_after == I, not plan_marked_before.
               Event: plan_marked_after.
@@ -43,7 +49,8 @@ How to read the `group` column (fields joined by "|")
                           Channels and sources are defined in label_exposures.py.
   p_exposure (backoff)    <model>|*|<channel>:*  when the specific group has fewer
                           than min_n trials; pooled over seats and sources.
-  file_clean              <boss model>|<invite_sentence> e.g. sonnet|True
+  file_clean              <model>|<seat>|<invite_sentence> e.g. sonnet|boss|True
+  p_delayed, read_*       <model>|<seat>
 
 Decisions (open for contribution)
 ---------------------------------
@@ -73,6 +80,11 @@ Limitations
 - Suspect turns (replay_mismatch) are dropped, not repaired.
 - Groups the training runs never produced have no parameter at all; the
   simulator warns or refuses when a target config needs one.
+- A group missing from one bootstrap resample takes the full-data estimate
+  for that draw, which slightly understates its uncertainty.
+- Exposures through workspace files other than AGENTS.md / PLAN.md
+  (workspace_file) and own_notes exposures of agents still labelled
+  susceptible are fitted jointly but not simulated (see simulate.py).
 - The 0.01 ridge penalty on the logit scale pulls p_exposure slightly toward 0.5.
 
 Outputs: params/params.csv (long: draw, param, group, value) and params/meta.json
@@ -103,10 +115,15 @@ def _rate(df: pd.DataFrame, mask, event, keys) -> dict:
     return out
 
 
-def exposure_groups(trials: pd.DataFrame, min_n: int) -> list[list[str]]:
+def exposure_counts(trials: pd.DataFrame) -> Counter:
+    """Trials per specific exposure group, on the full data: decides backoff once for all draws."""
+    return Counter(g for r in trials.itertuples()
+                   for g in {f"{r.model}|{r.seat}|{e}" for e in json.loads(r.new_exposures)})
+
+
+def exposure_groups(trials: pd.DataFrame, min_n: int, counts: Counter) -> list[list[str]]:
     """Group id for each exposure in each trial, with backoff for thin groups."""
     raw = [[f"{r.model}|{r.seat}|{e}" for e in json.loads(r.new_exposures)] for r in trials.itertuples()]
-    counts = Counter(g for gs in raw for g in set(gs))
 
     def back(g):
         if counts[g] >= min_n:
@@ -116,12 +133,12 @@ def exposure_groups(trials: pd.DataFrame, min_n: int) -> list[list[str]]:
     return [[back(g) for g in gs] for gs in raw]
 
 
-def fit_exposure(trials: pd.DataFrame, min_n: int) -> dict:
+def fit_exposure(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict:
     """Joint MLE of p_exposure under independent action."""
     at_risk = trials[(trials.state_before == "S") & (trials.n_new_exposures > 0) & ~trials.is_index_first_turn]
     if at_risk.empty:
         return {}
-    groups = exposure_groups(at_risk, min_n)
+    groups = exposure_groups(at_risk, min_n, counts)
     names = sorted({g for gs in groups for g in gs})
     idx = {g: i for i, g in enumerate(names)}
     X = np.zeros((len(at_risk), len(names)))
@@ -142,11 +159,15 @@ def fit_exposure(trials: pd.DataFrame, min_n: int) -> dict:
     return {g: (float(p[i]), int(n[i]), int(y[X[:, i] > 0].sum())) for g, i in idx.items()}
 
 
-def fit_once(trials: pd.DataFrame, min_n: int) -> dict[str, dict]:
+def fit_once(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict[str, dict]:
     t = trials
     return {
         "pi0": _rate(t, t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
-        "p_exposure": fit_exposure(t, min_n),
+        "p_exposure": fit_exposure(t, min_n, counts),
+        "p_delayed": _rate(t, (t.state_before == "S") & (t.n_new_exposures == 0) & t.seen_rule_before
+                           & ~t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
+        "read_agents_md": _rate(t, t["round"] > 0, lambda g: g.read_agents_md, ["model", "seat"]),
+        "read_plan_md": _rate(t, t["round"] > 0, lambda g: g.read_plan_md, ["model", "seat"]),
         "gamma": _rate(t, t.state_before == "I", lambda g: g.state_after == "S",
                        ["model", "seat", "file_marked_before"]),
         "msg_send": _rate(t, t.state_after == "I", lambda g: g.sent_marker_to != "[]", ["model", "seat"]),
@@ -156,8 +177,8 @@ def fit_once(trials: pd.DataFrame, min_n: int) -> dict[str, dict]:
                             lambda g: ~g.plan_marked_after, ["model"]),
         "file_mark": _rate(t, (t.state_after == "I") & ~t.file_marked_before,
                            lambda g: g.file_marked_after, ["model", "seat"]),
-        "file_clean": _rate(t, (t.seat == "boss") & (t.state_after == "S") & t.file_marked_before,
-                            lambda g: ~g.file_marked_after, ["model", "invite_sentence"]),
+        "file_clean": _rate(t, (t.state_after == "S") & t.file_marked_before,
+                            lambda g: ~g.file_marked_after, ["model", "seat", "invite_sentence"]),
     }
 
 
@@ -174,13 +195,18 @@ def main() -> None:
     runs = trials.run_id.unique()
     rng = np.random.default_rng(args.seed)
 
-    point = fit_once(trials, args.min_n)
+    counts = exposure_counts(trials)
+    point = fit_once(trials, args.min_n, counts)
     rows = []
     for d in range(args.n_draws):
         pick = rng.choice(runs, size=len(runs), replace=True)
         boot = pd.concat([trials[trials.run_id == r].assign(run_id=f"{r}#{i}") for i, r in enumerate(pick)])
-        for param, groups in fit_once(boot, args.min_n).items():
-            for g, (v, _, _) in groups.items():
+        fit = fit_once(boot, args.min_n, counts)
+        for param, groups in point.items():
+            for g, (pv, _, _) in groups.items():
+                # A group absent from this resample (none of its runs drawn) keeps the
+                # full-data estimate, so every draw has every group the simulator may need.
+                v = fit[param][g][0] if g in fit.get(param, {}) else pv
                 rows.append({"draw": d, "param": param, "group": g, "value": v})
     draws = pd.DataFrame(rows)
     summ = []
