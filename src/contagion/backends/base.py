@@ -40,7 +40,8 @@ class TurnResult:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
-    error: Optional[str] = None        # set when the turn failed (usage limit, timeout, API error)
+    error: Optional[str] = None        # set when the turn failed (usage limit, timeout, API error); stops the run
+    warning: Optional[str] = None      # noted but not fatal (e.g. hit max_turns; something leaked into isolation)
     raw_log: Optional[str] = None      # backend-specific transcript, saved for audit
 
 

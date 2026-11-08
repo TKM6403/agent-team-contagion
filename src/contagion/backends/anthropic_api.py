@@ -72,7 +72,7 @@ class AnthropicAPI:
                                     "is_error": is_error})
                 messages.append({"role": "user", "content": results})
             else:
-                out.error = f"hit max_turns={plumbing.max_turns}"
+                out.warning = f"hit max_turns={plumbing.max_turns}"  # turn ends early; not a failure
         except anthropic.APIError as e:
             out.error = f"{type(e).__name__}: {e}"
         pin, pout = PRICES[model]

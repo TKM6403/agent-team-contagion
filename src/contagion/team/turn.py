@@ -138,21 +138,27 @@ def run_turn(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, backend: Ba
     # Cross-check: the replay should predict the disk. A mismatch means the tool
     # log is incomplete for that file (e.g. a tool call that errored, or a change
     # made some other way), so read hashes of that file in this turn are suspect.
-    # The disk stays the ground truth; stage 2 can treat these turns with care.
-    for c_path in sorted({_rel(c.path, sandbox) for c in result.tool_calls if c.tool != "read"}):
-        if tracked.get(c_path) != after.get(c_path):
+    # Trailing whitespace is ignored: Claude Code's Write/Edit can normalise line
+    # endings. The disk stays the ground truth; stage 2 marks a turn suspect only
+    # when the mismatch is on a shared file whose reads count (AGENTS.md, PLAN.md).
+    def same(x, y):
+        norm = lambda t: None if t is None else "\n".join(l.rstrip() for l in t.rstrip().splitlines())
+        return norm(x) == norm(y)
+
+    named = {_rel(c.path, sandbox) for c in result.tool_calls if c.tool != "read"}
+    for c_path in sorted(named):
+        if not same(tracked.get(c_path), after.get(c_path)):
             log.event(rnd, agent.name, "replay_mismatch", c_path, after.get(c_path),
                       replay_hash=content_hash(tracked[c_path]) if c_path in tracked else None)
     for path in sorted(set(before) | set(after)):
-        if before.get(path) != after.get(path) and tracked.get(path) != after.get(path) \
-                and not any(_rel(c.path, sandbox) == path for c in result.tool_calls):
+        if before.get(path) != after.get(path) and path not in named and not same(tracked.get(path), after.get(path)):
             log.event(rnd, agent.name, "replay_mismatch", path, after.get(path), replay_hash=None,
                       note="file changed with no tool call naming it")
 
     log.turn({"round": rnd, "agent": agent.name, "role": agent.role, "model": agent.model,
               "n_tool_calls": len(result.tool_calls), "input_tokens": result.input_tokens,
               "output_tokens": result.output_tokens, "cost_usd": round(result.cost_usd, 6),
-              "error": result.error, "output_has_marker": log.has_marker(result.final_text),
+              "error": result.error, "warning": result.warning, "output_has_marker": log.has_marker(result.final_text),
               "final_text": result.final_text[:2000]})
     log.flush()
     return result

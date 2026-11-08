@@ -111,6 +111,15 @@ python -m contagion.run_agent_team experiment_configs/invite_on_sonnet.yaml --n-
 
 ## Pipeline commands
 
+All stages from one YAML (pauses after pre-registering so you can commit the prediction before held-out runs exist):
+
+```bash
+python -m contagion.pipeline experiment_configs/invite_on_sonnet.yaml --train-runs 8 --heldout-runs 8 --jobs 4
+python -m contagion.pipeline train.yaml --target target.yaml --train-runs 8 --heldout-runs 8   # forecast a different setup
+```
+
+Or stage by stage:
+
 ```bash
 C=experiment_configs/invite_on_sonnet.yaml
 python -m contagion.run_agent_team $C --n-runs 8 --jobs 4 --budget-usd 10      # 1

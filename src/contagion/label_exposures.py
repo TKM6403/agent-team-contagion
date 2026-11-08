@@ -81,8 +81,10 @@ Limitations
 - A sent message is detected from inbox files going from no marker to
   marker. If two agents message the same recipient with the rule in the
   same round before it reads its inbox, only the first is counted.
-- Turns flagged by a replay_mismatch event (tool log and disk disagree) are
-  marked suspect=True and excluded by the fitter.
+- Turns with a replay_mismatch on AGENTS.md or PLAN.md (tool log and disk
+  disagree, so read hashes may be wrong) are marked suspect=True and
+  excluded by the fitter. Mismatches on other files (notes, inboxes) are
+  logged but don't mark the turn.
 """
 from __future__ import annotations
 
@@ -191,8 +193,8 @@ def label_run(run_dir: Path, exposure_memory: str, judge: Judge | None):
             exposures, suspect, wrote_ws, wrote_marker = [], False, False, False
             for e in evs:
                 k, path = e["kind"], e["path"]
-                if k == "replay_mismatch":
-                    suspect = True
+                if k == "replay_mismatch" and path in SHARED:
+                    suspect = True  # reads of this file this turn may be mis-hashed
                 # A turn "writes the rule" only if it adds marker lines or changes them;
                 # an unrelated edit to a file that already carries the rule does not count.
                 adds_rule = k == "file_change" and e.get("has_marker", False) and \
