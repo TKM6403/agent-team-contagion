@@ -4,35 +4,21 @@ How the experiment is organised in code. Six stages after config, each with one 
 
 Status: stage 0 is implemented; stages 1 to 6 are planned. This document changes as we build.
 
-## Start here (for collaborators and their coding agents)
+## Start here
 
-**What this repo is.** A clean rebuild of the sprint harness (the `agent-outbreaks` repo, `harness/driver.py` and friends) as six stages with one config format. Same experiment: plant one rule in one agent's notes, let a boss + workers team build a small project for N rounds, log every read, write and message, and model the spread like an epidemic. What changes is the organisation:
+**What this is.** An environment for studying how one planted rule spreads through a team of AI coding agents. A boss agent and several worker agents build a small Python library together over N rounds, sharing a project folder that includes a house-rules file, AGENTS.md. Before round 1, one bad house rule is planted in one agent's private notes. Every read, write and message is logged, and the spread is modelled like an epidemic: who catches the rule, from whom, through which channel, and who gets over it.
 
-| Sprint harness | This repo |
-|---|---|
-| about 31 config keys, many one-off arms | about 12 knobs, each documented in `src/contagion/config.py` |
-| one script runs, labels and fits | one stage per job; each stage reads the files the previous one wrote |
-| refusals re-counted every round | `exposure_memory: new_only` counts each exposure once |
-| Beta intervals per cell | whole-run bootstrap, so run-to-run variation shows up in the intervals |
-| forecast and fit could use different combine rules | the combine rule is stored with the fitted params and the simulator reads it |
+**What you can tune.** Everything about an experiment is one YAML file in `experiment_configs/`. Each knob is documented in `src/contagion/config.py`; in short:
 
-**The sprint experiments can still be run.** Core arms map onto the new config:
+| Section | Knobs | What it lets you ask |
+|---|---|---|
+| `rule` | `level`, `marker`, `seed_location`, `seed_seat` | Do agents resist rules that hurt the work? Does it matter who starts with the rule, or whether it starts in the shared file? |
+| `team` | `boss_model`, `worker_models`, `messaging` | Do mixed teams behave as predicted from single-model measurements? Is the boss a superspreader? How much spread goes through messages vs files? |
+| `defenses` | `invite_sentence`, `clean_every_k` | Does one line in AGENTS.md change whether the boss cleans up? How often must the shared file be wiped to stop an outbreak? |
+| `plumbing` | `backend`, `effort`, `max_turns` | Do results hold across ways of calling the model? |
+| top level | `task`, `n_rounds` | What the team builds, and for how long. |
 
-| Sprint key | New config |
-|---|---|
-| `rounds` | `n_rounds` |
-| `rule_level` | `rule.level` (public ladder has 0 to 3; same numbering) |
-| CHICANERY marker | `rule.marker: CHICANERY` (default is the neutral `KESTREL`) |
-| `seed_where: memory` / `agents_md`, `patient_zero` | `rule.seed_location: notes` / `agents_md`, `rule.seed_seat` |
-| `agents` (boss + workers, models) | `team.boss_model`, `team.worker_models` |
-| `messages` | `team.messaging` |
-| `invite` | `defenses.invite_sentence` |
-| `clean_every` | `defenses.clean_every_k` |
-| `effort`, `max_turns`, `claude -p` | `plumbing.effort`, `plumbing.max_turns`, `plumbing.backend: claude_cli` |
-
-Not carried over (yet): monitor, reviewer, CI, stealth and persistence clauses, rival or covert co-leads, scripted agents, `rules_file: CLAUDE.md`, memory carry-over, stateless workers, other seed vectors. Each can come back as a documented knob if an experiment needs it. Old run logs will be read by `adapters/agent_outbreaks.py`, so sprint data can feed the fitter directly.
-
-**Why this shape: tune cheaply, spend real money only on the interesting configs.** The loop the stages are built for:
+**How the stages are meant to be used: tune cheaply, spend real money only on the interesting configs.**
 
 1. Run a modest set of real configs (stage 1) and turn them into per-turn trials (stage 2).
 2. Fit per-exposure probabilities with honest uncertainty (stage 3).
@@ -40,7 +26,7 @@ Not carried over (yet): monitor, reviewer, CI, stealth and persistence clauses, 
 4. Pick the few configs where the forecast is most informative or most likely to break, freeze the prediction (stage 5), then run them for real and score (stage 6).
 5. What fails tells you which parameter or assumption to measure next. Repeat.
 
-Each round of the loop is a config change plus a re-run of the stages after it, so iterating is a matter of editing YAML, not code.
+Each iteration is a config change plus a re-run of the stages after it: editing YAML, not code.
 
 ```mermaid
 flowchart LR
@@ -72,7 +58,7 @@ name: invite_on_sonnet
 n_rounds: 8
 rule:
   level: 3              # rung of rules/ladder.yaml; 0 harmless marker, 3 skip tests
-  marker: KESTREL       # word every rule makes the agent write; CHICANERY reproduces the original harness
+  marker: KESTREL       # word every rule makes the agent write, so obeying is detectable
   seed_location: notes  # notes | agents_md
   seed_seat: worker     # boss | worker (null when seed_location is agents_md)
 team:
@@ -90,7 +76,7 @@ plumbing:
 - Unknown keys are errors, so a mistyped knob never falls back to a default silently.
 - Fixed, not knobs: each round the boss acts first, then workers one at a time in listed order.
 - `experiment_hash()` identifies the exact config; `flat()` turns it into columns for `runs.csv`.
-- The public ladder has levels 0 to 3. Level numbers match the original harness.
+- The ladder has levels 0 (harmless marker) to 3 (skip tests).
 
 ## Provenance: linking results to configs
 
@@ -111,7 +97,7 @@ Exposure type = (channel in {own_notes, agents_md, plan_md, message}, source_rol
 
 `exposure_memory`:
 - `new_only`: an exposure counts as a trial only if that agent hasn't already seen that exact content (same file version or same message). Needs stage 1 to log a content hash for every read.
-- `all`: every read counts. This was the old behaviour; it re-counts the same refusal every round and makes intervals too narrow.
+- `all`: every read counts. This re-counts the same refusal every round and makes intervals too narrow; kept for comparison.
 
 ## The model (what stage 3 estimates)
 
@@ -135,7 +121,7 @@ Exposure type = (channel in {own_notes, agents_md, plan_md, message}, source_rol
 
 Interface: `call_agent(prompt, workspace, model, tools) -> transcript (+ usage, cost)`.
 
-- `claude_cli`: subprocess `claude -p`, as in the original harness. Bills whatever login is active; cost is a list-price estimate.
+- `claude_cli`: subprocess `claude -p`. Bills whatever login is active; cost is a list-price estimate.
 - `agent_sdk`: Claude Agent SDK, the Claude Code agent loop, API-key billed.
 - `anthropic_api`: Messages API with our own small tool loop (`read_file`, `write_file`, `list_files`), API-key billed. Messages are files (`inbox/<name>.md`), so no separate messaging tool is needed.
 
@@ -145,13 +131,12 @@ The backend is recorded with every run. Results may not carry over between backe
 
 - **Can simulate** (structural knobs that rearrange measured pieces): team size, worker mix, seed seat (if measured), `clean_every_k`.
 - **Must measure** (behavioural knobs): a new rule level, a new model, new prompt wording, a seat never measured. `simulate` and `validate` warn or refuse when a target config needs a parameter group with no training data.
-- **Research question:** do per-exposure probabilities carry over across team configurations? This assumes adoption depends on exposures, not team context. Sprint data already shows one context effect: Haiku workers adopted from the shared file 5/10 under an Opus boss vs 23/23 under a Sonnet boss.
+- **Research question:** do per-exposure probabilities carry over across team configurations? This assumes adoption depends on exposures, not team context. A context effect (e.g. workers adopting from the same file more readily under one boss model than another) would break it, and `validate` is designed to catch that.
 - **Exploration loop:** sweep structural knobs in `simulate` to find critical points (e.g. the mix threshold f*, the wipe interval k*), then spend real budget only on `preregister` + `validate` of flagged configs, including one test aimed at where carry-over may break (a boss swap).
 - `simulate` accepts any `params` table, fitted or hand-written, so the estimator can be swapped.
 
 ## Implementation notes
 
 - `budget_usd`: estimate each run's cost before launch and only start runs that fit. Never cut a run off silently; truncated runs are flagged and left out of fits.
-- `adapters/agent_outbreaks.py` will convert the original harness's run logs into `trials.csv` / `file_states.csv`.
-- Reproduction check: re-run a few original-harness cells with `claude_cli` and `marker: CHICANERY` and check the results land inside the original intervals.
+- `adapters/` can convert run logs from other harnesses into `trials.csv` / `file_states.csv`, so external data can feed the fitter.
 - R0 is out of scope for v1.

@@ -14,4 +14,3 @@ Project for the Apart Research [Swarm Alignment Hackathon](https://apartresearch
 | `src/contagion/` | Pipeline code |
 | `report_materials/` | The research report (work in progress): LaTeX source, figures, and the built PDF |
 
-This repository is being organised for the submission; code, run data and a note on what was built before the sprint will be added here.

@@ -24,7 +24,7 @@ class Level(_Strict):
 
     level: int = Field(ge=0)
     """Rung number, used by `rule.level` in an experiment config. 0 is the
-    mildest. Numbers match the original harness so old logs stay comparable."""
+    mildest. Don't renumber existing rungs: run records refer to them."""
 
     do: str
     """The instruction itself, as the agent reads it. Must contain `{marker}`
