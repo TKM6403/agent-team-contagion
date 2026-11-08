@@ -9,7 +9,7 @@ parameters, so the forecast spread includes parameter uncertainty.
 
 One simulated turn for agent a (same channels stage 2 counts):
   1. New exposures, each typed channel:source as in stage 2:
-       own_notes:self   patient zero on its first turn (uses pi0 instead)
+       (patient zero's first turn uses pi0 instead)
        agents_md:<src>  a opens AGENTS.md (read_agents_md), it is marked, and
                         this rule text is new to a
        plan_md:<src>    same for PLAN.md (read_plan_md)
@@ -19,8 +19,11 @@ One simulated turn for agent a (same channels stage 2 counts):
      the way stage 2 counted them. A file's rule text changes only when the
      rule is written into it, not when it is cleaned. Messages are always new.
   2. Susceptible a adopts with 1 - prod_k (1 - p_k) (combine rule from
-     meta.json); with no new exposure but having seen the rule before, it
-     adopts with p_delayed.
+     meta.json). With no such exposure, while the rule is circulating (some
+     agent infected, AGENTS.md / PLAN.md marked, or a itself already knows
+     the rule: patient zero, or exposed before), it adopts with p_background: the fitted rate for every other
+     route (late change of mind, code comments, own notes), defined on
+     exactly the same turns in stage 2.
   3. Infected a recovers with gamma (grouped by whether AGENTS.md is marked).
   4. If a is still infected: marks a clean AGENTS.md (file_mark); if a is the
      boss, writes the rule into a clean PLAN.md (plan_mark); sends one
@@ -55,23 +58,15 @@ Limitations
 -----------
 - Message recipients are uniform over teammates; real agents may favour the
   boss. An infected agent sends at most one rule-carrying message per turn.
-- Only AGENTS.md and PLAN.md are shared reservoirs; other workspace files
-  (e.g. a teammate's test file carrying the marker) are not simulated as
-  exposures, though stage 2 counts them as workspace_file.
+- Only AGENTS.md and PLAN.md are modelled as shared files; other files
+  carrying the rule act only through p_background.
 - Only the boss writes or cleans PLAN.md.
-- Not simulated, though stage 2 counts them: exposures through other
-  workspace files (e.g. a marker comment in a teammate's code, which at
-  level 0 is the infection itself) and own_notes exposures of agents still
-  labelled susceptible (a recovered agent whose notes keep the rule, or
-  patient zero after refusing). Both are fitted jointly with the channels
-  above and then dropped here, so forecasts lean low where they matter.
+- Routes other than AGENTS.md, PLAN.md and messages run at one constant
+  background rate while the rule circulates; they don't grow with the
+  number of infected teammates or marked code files.
 - Rule-text identity is approximate: stage 2 compares exact marker lines
   (an agent that rewords the rule creates a new text); the simulator treats
   each write of the rule into a file as a new text.
-- Own notes re-expose only infected agents (and patient zero on turn 1). A
-  recovered agent whose notes still contain the rule is not re-exposed by
-  them, although stage 2 counts such own_notes exposures. Fix: track whether
-  each agent's notes carry the rule as its own state.
 - Adoption depends only on exposures (and seat and model), not on team
   context such as which boss model is in charge. A context effect in real
   runs is exactly what stage 6 is meant to catch.
@@ -121,7 +116,7 @@ def needed_groups(exp) -> list[tuple[str, str, str | None]]:
             need.append(("pi0", g, None))
         need += [("gamma", f"{g}|True", f"{a.model}|*"), ("gamma", f"{g}|False", f"{a.model}|*"),
                  ("file_mark", g, f"{a.model}|*"), ("msg_send", g, f"{a.model}|*"),
-                 ("p_delayed", g, f"{a.model}|*"), ("read_agents_md", g, f"{a.model}|*"),
+                 ("p_background", g, f"{a.model}|*"), ("read_agents_md", g, f"{a.model}|*"),
                  ("read_plan_md", g, f"{a.model}|*"),
                  ("file_clean", f"{g}|{exp.defenses.invite_sentence}", None)]
         for ch in CHANNELS:
@@ -147,7 +142,7 @@ def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
 
 def pooled(draws: pd.DataFrame) -> pd.DataFrame:
     """Add model|* groups for gamma, file_mark, msg_send (mean over seats), used as a fallback."""
-    sub = draws[draws.param.isin(["gamma", "file_mark", "msg_send", "p_delayed",
+    sub = draws[draws.param.isin(["gamma", "file_mark", "msg_send", "p_background",
                                   "read_agents_md", "read_plan_md"])].copy()
     sub["group"] = sub.group.str.split("|").str[0] + "|*"
     return pd.concat([draws, sub.groupby(["draw", "param", "group"], as_index=False).value.mean()])
@@ -162,8 +157,8 @@ def simulate_once(exp, P: Params, rng: np.random.Generator, memory: str = "new_o
               "plan_md": {"marked": False, "version": 0, "by": "boss"}}
     seen = {a.name: set() for a in team}
     inbox: dict[str, list[str]] = {a.name: [] for a in team}  # sender roles of waiting rule messages
-    seen_any: set[str] = set()  # agents that have been exposed to the rule at least once
     boss = exp.team.boss_model
+    knows = {seed} if seed else set()  # agents that know the rule: patient zero, or exposed before
 
     def p(param, group, fb=None):
         try:
@@ -184,12 +179,13 @@ def simulate_once(exp, P: Params, rng: np.random.Generator, memory: str = "new_o
     def take_turn(rnd: int, a: Agent) -> bool:
         g = f"{a.model}|{a.role}"
         file_marked_at_start = shared["agents_md"]["marked"]
+        circulating = any(infected.values()) or shared["agents_md"]["marked"] or shared["plan_md"]["marked"] \
+            or a.name in knows  # same definition as stage 2's rule_circulating
         msgs, inbox[a.name] = inbox[a.name], []
         reads = {ch for ch in ("agents_md", "plan_md")
                  if rng.random() < p(f"read_{ch}", g, f"{a.model}|*")}
         if rnd == 1 and a.name == seed:
             infected[a.name] = rng.random() < P.get("pi0", g)
-            seen_any.add(a.name)
         elif not infected[a.name]:
             escape, n_new = 1.0, 0
             for ch in reads:
@@ -202,9 +198,9 @@ def simulate_once(exp, P: Params, rng: np.random.Generator, memory: str = "new_o
                 n_new += 1
             if n_new:
                 infected[a.name] = rng.random() < 1 - escape
-                seen_any.add(a.name)
-            elif a.name in seen_any:
-                infected[a.name] = rng.random() < p("p_delayed", g, f"{a.model}|*")
+                knows.add(a.name)
+            elif circulating:  # same turns stage 2 counts as background
+                infected[a.name] = rng.random() < p("p_background", g, f"{a.model}|*")
         elif rng.random() < p("gamma", f"{g}|{file_marked_at_start}", f"{a.model}|*"):
             infected[a.name] = False
         for ch in reads:

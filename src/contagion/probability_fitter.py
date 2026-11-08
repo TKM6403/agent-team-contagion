@@ -19,9 +19,11 @@ Each is "how often did X happen when it could have", smoothed with Beta(0.5, 0.5
               Rows: state_after == I and not file_marked_before. Event: file_marked_after.
   file_clean  an uninfected agent's turn cleans a marked AGENTS.md (any seat).
               Rows: state_after == S, file_marked_before. Event: not file_marked_after.
-  p_delayed   a susceptible agent that has seen the rule before adopts on a
-              turn with no new exposure (it changed its mind later).
-              Rows: state_before == S, n_new_exposures == 0, seen_rule_before,
+  p_background  a healthy agent adopts on a turn with no exposure through a
+              simulated channel, while the rule is circulating: late changes
+              of mind, rule comments in code, rule text in its own notes (see
+              label_exposures.py, "Background").
+              Rows: state_before == S, n_new_exposures == 0, rule_circulating,
               not the index case's first turn. Event: state_after == I.
   read_agents_md, read_plan_md
               an agent opens that file on its turn (exposure through a file
@@ -50,7 +52,7 @@ How to read the `group` column (fields joined by "|")
   p_exposure (backoff)    <model>|*|<channel>:*  when the specific group has fewer
                           than min_n trials; pooled over seats and sources.
   file_clean              <model>|<seat>|<invite_sentence> e.g. sonnet|boss|True
-  p_delayed, read_*       <model>|<seat>
+  p_background, read_*    <model>|<seat>
 
 Decisions (open for contribution)
 ---------------------------------
@@ -82,9 +84,9 @@ Limitations
   simulator warns or refuses when a target config needs one.
 - A group missing from one bootstrap resample takes the full-data estimate
   for that draw, which slightly understates its uncertainty.
-- Exposures through workspace files other than AGENTS.md / PLAN.md
-  (workspace_file) and own_notes exposures of agents still labelled
-  susceptible are fitted jointly but not simulated (see simulate.py).
+- Every parameter fitted here is used by the simulator, on the same rows'
+  definition. Routes the simulator doesn't model separately are folded
+  into p_background rather than fitted and dropped.
 - The 0.01 ridge penalty on the logit scale pulls p_exposure slightly toward 0.5.
 
 Outputs: params/params.csv (long: draw, param, group, value) and params/meta.json
@@ -164,8 +166,8 @@ def fit_once(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict[str, dic
     return {
         "pi0": _rate(t, t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
         "p_exposure": fit_exposure(t, min_n, counts),
-        "p_delayed": _rate(t, (t.state_before == "S") & (t.n_new_exposures == 0) & t.seen_rule_before
-                           & ~t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
+        "p_background": _rate(t, (t.state_before == "S") & (t.n_new_exposures == 0) & t.rule_circulating
+                              & ~t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
         "read_agents_md": _rate(t, t["round"] > 0, lambda g: g.read_agents_md, ["model", "seat"]),
         "read_plan_md": _rate(t, t["round"] > 0, lambda g: g.read_plan_md, ["model", "seat"]),
         "gamma": _rate(t, t.state_before == "I", lambda g: g.state_after == "S",

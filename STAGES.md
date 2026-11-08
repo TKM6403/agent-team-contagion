@@ -129,7 +129,7 @@ Each stage writes only what the next stage reads.
 `trials.csv`: one row per agent-turn.
 `run_id, round, agent_id, model, seat, state_before (S/I), file_marked_before, new_exposures (list of type ids), n_new_exposures, state_after (S/I), file_marked_after, is_index_first_turn, suspect, boss_model, invite_sentence, experiment_hash`. S->I = infection, I->S = recovery. The index case's first turn is flagged `is_index_first_turn`.
 
-Exposure type = (channel in {own_notes, agents_md, plan_md, message}, source_role in {boss, worker, self}).
+Exposure type = (channel in {agents_md, plan_md, message}, source in {boss, worker, seed, self}): only channels the simulator plays out. Every other route (late change of mind, a marker comment in a teammate's code, the rule in an agent's own notes) is **background**: one fitted rate `p_background` for healthy turns with no listed exposure while the rule is circulating (`rule_circulating`: someone is infected, a shared file is marked, or the agent already knows the rule as patient zero or from an earlier exposure). This keeps every fitted parameter used identically by the simulator, with fewer parameters; the cost is that those routes can't be told apart.
 
 `exposure_memory`:
 - `new_only`: an exposure counts as a trial only if that agent hasn't already seen that exact content (same file version or same message). Needs stage 1 to log a content hash for every read.
@@ -144,6 +144,8 @@ Exposure type = (channel in {own_notes, agents_md, plan_md, message}, source_rol
 | `gamma` | infected agent drops the rule, per round | model, seat, file_marked |
 | `plan_mark` / `plan_clean` | infected boss writes the rule into PLAN.md / uninfected boss removes it | boss model |
 | `msg_send` | infected agent sends a rule-carrying message (recipient random in the sim) | model, seat |
+| `p_background` | healthy agent adopts with no exposure through a simulated channel while the rule circulates | model, seat |
+| `read_agents_md` / `read_plan_md` | agent opens that file on its turn | model, seat |
 | `file_mark` | shared file becomes marked, per round, given an infected writer | writer seat x model |
 | `file_clean` | marked file gets cleaned, per round | boss model x `invite_sentence` |
 
