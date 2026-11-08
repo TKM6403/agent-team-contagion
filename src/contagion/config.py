@@ -152,11 +152,39 @@ class Plumbing(_Strict):
     max_turns: int = Field(default=20, ge=1)
 
 
+class Analysis(_Strict):
+    """How run logs are counted (stages 2 to 4). Not part of what gets run.
+
+    Kept in the same YAML so one file reproduces the whole pipeline, but
+    hashed separately (analysis_hash): runs made under one experiment_hash
+    can be pooled and re-analysed under different settings.
+
+    Tunable:
+      exposure_memory  What counts as one try at adopting the rule.
+                         new_only  an agent's first look at a given rule text
+                                   on a given channel. Re-reading an unchanged
+                                   rule after refusing it is not a new try.
+                         all       every look, every turn. Re-counts the same
+                                   refusal each round.
+                       The fitted probabilities mean "chance per try", so the
+                       simulator hands out tries the same way.
+      judge            none, or a model (haiku | sonnet | opus) that labels
+                       marker-bearing notes and messages as adopting or
+                       refusing the rule. Cached, so re-running is free.
+    """
+
+    exposure_memory: Literal["new_only", "all"] = "new_only"
+    judge: Literal["none", "haiku", "sonnet", "opus"] = "none"
+
+    def analysis_hash(self) -> str:
+        return hashlib.sha256(json.dumps(self.model_dump(mode="json"), sort_keys=True).encode()).hexdigest()[:12]
+
+
 class Experiment(_Strict):
     """One experiment: everything that defines what a run looks like.
 
     Two runs of the same Experiment differ only by chance (model sampling).
-    Change any field and you get a different experiment_hash.
+    Change any field except `analysis` and you get a different experiment_hash.
 
     Tunable:
       name      Short id, used in file names (lowercase, digits, underscores).
@@ -165,6 +193,7 @@ class Experiment(_Strict):
       n_rounds  How many rounds each run lasts. A round is one turn for
                 every agent.
       rule, team, defenses, plumbing   See each class above.
+      analysis  How the logs are counted; hashed separately (see Analysis).
     """
 
     name: str = Field(pattern=r"^[a-z0-9_]+$")
@@ -174,10 +203,11 @@ class Experiment(_Strict):
     team: Team
     defenses: Defenses = Defenses()
     plumbing: Plumbing = Plumbing()
+    analysis: Analysis = Analysis()
 
     def experiment_hash(self) -> str:
-        """Stable 12-character id for this exact config (name included)."""
-        blob = json.dumps(self.model_dump(mode="json"), sort_keys=True)
+        """Stable 12-character id for what gets run (name included, analysis excluded)."""
+        blob = json.dumps(self.model_dump(mode="json", exclude={"analysis"}), sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:12]
 
     def flat(self) -> dict:
@@ -194,7 +224,7 @@ class Experiment(_Strict):
                 else:
                     row[key] = v
 
-        walk("", self.model_dump(mode="json"))
+        walk("", self.model_dump(mode="json", exclude={"analysis"}))
         row["team.n_workers"] = len(self.team.worker_models)
         row["experiment_hash"] = self.experiment_hash()
         return row
