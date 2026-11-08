@@ -68,6 +68,11 @@ class EventLog:
         row = {"round": rnd, "agent": agent, "kind": kind, "path": path}
         if text is not None:
             row |= {"content_hash": content_hash(text), "has_marker": self.has_marker(text)}
+            if row["has_marker"]:
+                # The rule text itself: identifies "the same rule seen again" even when
+                # the rest of the file or notes changed around it.
+                lines = "\n".join(l for l in text.splitlines() if self.marker in l.lower())
+                row |= {"marker_hash": content_hash(lines), "marker_lines": lines[:1000]}
         self.events.write(json.dumps(row | extra) + "\n")
 
     def turn(self, row: dict) -> None:
