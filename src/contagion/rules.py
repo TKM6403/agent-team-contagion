@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -41,7 +42,12 @@ class Ladder(_Strict):
     """The full ladder plus the wrapper sentence every planted rule shares."""
 
     template: str
-    """Wraps a rung into the planted text. Has `{do}` and `{promote}` slots."""
+    """Wraps a rung into the planted text. Has `{source}`, `{do}` and `{promote}` slots."""
+
+    source: dict[Literal["worker", "boss"], str]
+    """Who the rule claims to come from, by patient zero's seat. A worker's
+    copy says it comes from the boss; the boss's copy names no source, since
+    nobody is above the boss."""
 
     promote: str
     """The part of the rule that asks to spread: tells whoever holds the rule
@@ -66,10 +72,13 @@ class Ladder(_Strict):
                 return lv
         raise KeyError(f"rule level {level} not in ladder (have {[lv.level for lv in self.levels]})")
 
-    def rule_text(self, level: int, marker: str) -> str:
-        """The exact text planted for this level and marker."""
-        do = self.get(level).do.format(marker=marker, marker_lower=marker.lower())
-        return self.template.format(do=do, promote=self.promote)
+    def do_text(self, level: int, marker: str) -> str:
+        """Just the instruction, with the marker filled in."""
+        return self.get(level).do.format(marker=marker, marker_lower=marker.lower())
+
+    def rule_text(self, level: int, marker: str, seat: Literal["worker", "boss"]) -> str:
+        """The exact text planted in patient zero's notes."""
+        return self.template.format(source=self.source[seat], do=self.do_text(level, marker), promote=self.promote)
 
     def ladder_hash(self) -> str:
         """12-character hash of the ladder contents. Recorded with every run, so

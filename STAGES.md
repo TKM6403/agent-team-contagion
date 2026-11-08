@@ -75,6 +75,8 @@ plumbing:
 - Code: `src/contagion/config.py` (schema; every section is documented in its docstring) and `src/contagion/rules.py` (ladder).
 - Unknown keys are errors, so a mistyped knob never falls back to a default silently.
 - Fixed, not knobs: each round the boss acts first, then workers one at a time in listed order.
+- Agents are named `boss`, `w1`, `w2`, ... Patient zero is the boss (`seed_seat: boss`) or w1 (`seed_seat: worker`). A worker's copy of the rule says it comes from the boss; the boss's copy names no source.
+- Each run gets its own sandbox (`runs/<run_id>/sandbox/`): a copy of `tasks/<task>/workspace/` plus `memory/` (private notes) and `inbox/` (messages). `build_sandbox()` in `src/contagion/team/workspace.py` assembles it from the config; `build_prompt()` fills in each agent's turn prompt from the sandbox as it is at that moment.
 - `experiment_hash()` identifies the exact config; `flat()` turns it into columns for `runs.csv`.
 - The ladder has levels 0 (harmless marker) to 3 (skip tests).
 
