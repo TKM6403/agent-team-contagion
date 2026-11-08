@@ -1,8 +1,8 @@
 # Pipeline stages
 
-How the experiment is organised in code. Six stages after config, each with one job, a few arguments, and files in and out. Any stage can be re-run on its own from the files the previous stage wrote.
+How the experiment is organised in code. Stages after config, each with one job, a few arguments, and files in and out. Any stage can be re-run on its own from the files the previous stage wrote.
 
-Status: stages 0 and 1 are implemented; stages 2 to 6 are planned. This document changes as we build.
+Status: all stages are implemented in a first version; stage 4 is known to under-predict (see its Limitations). Every module's docstring ends with a Limitations section. This document changes as we build.
 
 ## Start here
 
@@ -34,7 +34,7 @@ flowchart LR
     R --> L[2 label_exposures<br/>who saw what, who adopted]
     L --> F[3 probability_fitter<br/>parameters + uncertainty]
     F --> S[4 simulate<br/>no agents]
-    S --> P[5 preregister<br/>freeze forecast]
+    S --> P[5 preregister<br/>simulate --preregister]
     P --> V[6 validate<br/>score vs new real runs]
     C2[held-out config] --> R2[1 + 2 on held-out config] --> V
 ```
@@ -43,11 +43,11 @@ flowchart LR
 |---|---|---|---|---|
 | 0 | `config` | Load and validate one experiment YAML against the schema and the rule ladder | - | `experiment_configs/<name>.yaml`, `rules/ladder.yaml` |
 | 1 | `run_agent_team` | Run the real team: one agent call per agent per round. Log every read, write and message, and the cost of every turn | `n_runs`, `jobs` (runs in parallel), `budget_usd`, `dry_run` | config -> `runs/<run_id>/{events.jsonl, turns.jsonl, snapshots/, logs/, sandbox/, config.yaml, backend.txt}` + one row in `runs/runs.csv` |
-| 2 | `label_exposures` | (a) Rule-based triage of every text carrying the marker; (b) an LLM judge only for texts the rules can't classify (cached, so re-running is free); (c) build the tables | `judge_model`, `judge_scope` (`ambiguous`/`all`), `exposure_memory` (`new_only`/`all`) | runs -> `labels.csv`, `trials.csv`, `file_states.csv` |
-| 3 | `probability_fitter` | Estimate model parameters with honest uncertainty | `group_by`, `min_n`, `combine` (`independent`/`priority`), `uncertainty` (`run_bootstrap`/`beta`/`hierarchical`), `n_draws` | tables -> `params.parquet` (draws), `params_summary.csv` |
+| 2 | `label_exposures` | (a) Rule-based triage of every text carrying the marker; (b) an LLM judge only for texts the rules can't classify (cached, so re-running is free); (c) build the tables | `judge_model`, `judge_scope` (`ambiguous`/`all`), `exposure_memory` (`new_only`/`all`) | runs + YAML `analysis:` -> `tables/trials.csv`, `settings.json` |
+| 3 | `probability_fitter` | Estimate model parameters with honest uncertainty | `group_by`, `min_n`, `combine` (`independent`/`priority`), `uncertainty` (`run_bootstrap`/`beta`/`hierarchical`), `n_draws` | tables -> `params/params.csv` (draws), `params/meta.json` |
 | 4 | `simulate` | Chain-binomial Monte Carlo of a target config, which may never have been run. No agents | `params`, `config` (target), `n_sims`, `runs_per_cell`, `seed` | -> `forecast.csv` |
-| 5 | `preregister` | Freeze the forecast and decision rules, hash them, commit and push BEFORE validation runs | `forecast`, `decision_rules` | -> `predictions/<date>_<name>.yaml` |
-| 6 | `validate` | Run stages 1 and 2 on held-out config(s) and score them against the frozen forecast | `prediction`, `runs`, `metrics` (PIT, log score, per-config coverage), `null_model` | -> `scores.csv`, figure |
+| 5 | `simulate --preregister NAME` | Freeze the forecast and decision rule, hash them; commit and push BEFORE validation runs | `NAME` | -> `predictions/<date>_<name>.yaml` |
+| 6 | `validate` | Run stages 1 and 2 on held-out config(s) and score them against the frozen forecast | `prediction`, held-out `tables`, `--training-tables` (null model) | -> `scores.csv` (coverage, log score, null log score) |
 
 ## Stage 0: config (implemented)
 
@@ -102,20 +102,32 @@ python -m contagion.run_agent_team experiment_configs/invite_on_sonnet.yaml --n-
 
 ## Provenance: linking results to configs
 
-- Planned: the experiment YAML will also carry an `analysis:` section (stage 2 and 3 settings such as `exposure_memory`), so one file reproduces the whole pipeline. It gets its own `analysis_hash`; `experiment_hash` covers only what is run, so runs can be pooled and re-analysed under different settings.
+- `analysis:` section of the experiment YAML (`exposure_memory`, `judge`): how logs are counted. Hashed separately (`analysis_hash`, recorded in `tables/settings.json`, `params/meta.json` and pre-registrations); `experiment_hash` covers only what is run, so runs can be pooled and re-analysed under different settings.
 
 - `experiment_hash`: 12-character hash of the full config. Same config, same hash; change anything (including `n_rounds` or the marker) and it changes.
 - `ladder_hash`: hash of the rule ladder, so editing a rung's wording is never silent.
 - `batch_id`: one per `run_agent_team` launch, holding `n_runs`, `jobs`, `budget_usd`, git sha. The same experiment can have several batches (top-ups after a usage limit, replications).
 - `runs.csv`: one row per run: `run_id, batch_id, experiment_hash, ladder_hash, status` + the flattened config.
 
+## Pipeline commands
+
+```bash
+C=experiment_configs/invite_on_sonnet.yaml
+python -m contagion.run_agent_team $C --n-runs 8 --jobs 4 --budget-usd 10      # 1
+python -m contagion.label_exposures $C --batch <batch_id> --out tables          # 2
+python -m contagion.probability_fitter tables --out params                      # 3
+python -m contagion.simulate $C --params params --preregister v1                # 4 + 5, then commit predictions/
+python -m contagion.run_agent_team $C --n-runs 8                                # held-out runs
+python -m contagion.label_exposures $C --batch <new_batch_id> --out tables_heldout
+python -m contagion.validate predictions/<date>_v1.yaml tables_heldout --training-tables tables  # 6
+```
+
+Each stage writes only what the next stage reads.
+
 ## Tables (stage 2)
 
 `trials.csv`: one row per agent-turn.
-`run_id, round, agent_id, model, seat, state_before (S/I), file_marked_before, new_exposures (list of type ids), state_after (S/I)`. S->I = infection, I->S = recovery. The index case's first turn is flagged `is_index_first_turn`.
-
-`file_states.csv`: one row per run x round x shared file.
-`run_id, round, file, marked_before, marked_after, writer_agent, writer_seat, action (mark/clean/none)`.
+`run_id, round, agent_id, model, seat, state_before (S/I), file_marked_before, new_exposures (list of type ids), n_new_exposures, state_after (S/I), file_marked_after, is_index_first_turn, suspect, boss_model, invite_sentence, experiment_hash`. S->I = infection, I->S = recovery. The index case's first turn is flagged `is_index_first_turn`.
 
 Exposure type = (channel in {own_notes, agents_md, plan_md, message}, source_role in {boss, worker, self}).
 
