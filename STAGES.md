@@ -4,6 +4,44 @@ How the experiment is organised in code. Six stages after config, each with one 
 
 Status: stage 0 is implemented; stages 1 to 6 are planned. This document changes as we build.
 
+## Start here (for collaborators and their coding agents)
+
+**What this repo is.** A clean rebuild of the sprint harness (the `agent-outbreaks` repo, `harness/driver.py` and friends) as six stages with one config format. Same experiment: plant one rule in one agent's notes, let a boss + workers team build a small project for N rounds, log every read, write and message, and model the spread like an epidemic. What changes is the organisation:
+
+| Sprint harness | This repo |
+|---|---|
+| about 31 config keys, many one-off arms | about 12 knobs, each documented in `src/contagion/config.py` |
+| one script runs, labels and fits | one stage per job; each stage reads the files the previous one wrote |
+| refusals re-counted every round | `exposure_memory: new_only` counts each exposure once |
+| Beta intervals per cell | whole-run bootstrap, so run-to-run variation shows up in the intervals |
+| forecast and fit could use different combine rules | the combine rule is stored with the fitted params and the simulator reads it |
+
+**The sprint experiments can still be run.** Core arms map onto the new config:
+
+| Sprint key | New config |
+|---|---|
+| `rounds` | `n_rounds` |
+| `rule_level` | `rule.level` (public ladder has 0 to 3; same numbering) |
+| CHICANERY marker | `rule.marker: CHICANERY` (default is the neutral `KESTREL`) |
+| `seed_where: memory` / `agents_md`, `patient_zero` | `rule.seed_location: notes` / `agents_md`, `rule.seed_seat` |
+| `agents` (boss + workers, models) | `team.boss_model`, `team.worker_models` |
+| `messages` | `team.messaging` |
+| `invite` | `defenses.invite_sentence` |
+| `clean_every` | `defenses.clean_every_k` |
+| `effort`, `max_turns`, `claude -p` | `plumbing.effort`, `plumbing.max_turns`, `plumbing.backend: claude_cli` |
+
+Not carried over (yet): monitor, reviewer, CI, stealth and persistence clauses, rival or covert co-leads, scripted agents, `rules_file: CLAUDE.md`, memory carry-over, stateless workers, other seed vectors. Each can come back as a documented knob if an experiment needs it. Old run logs will be read by `adapters/agent_outbreaks.py`, so sprint data can feed the fitter directly.
+
+**Why this shape: tune cheaply, spend real money only on the interesting configs.** The loop the stages are built for:
+
+1. Run a modest set of real configs (stage 1) and turn them into per-turn trials (stage 2).
+2. Fit per-exposure probabilities with honest uncertainty (stage 3).
+3. Sweep structural knobs in the simulator for free (stage 4): team size, worker mix, seed seat, wipe interval. Look for where outcomes flip (e.g. the mix threshold f*, the wipe interval k*).
+4. Pick the few configs where the forecast is most informative or most likely to break, freeze the prediction (stage 5), then run them for real and score (stage 6).
+5. What fails tells you which parameter or assumption to measure next. Repeat.
+
+Each round of the loop is a config change plus a re-run of the stages after it, so iterating is a matter of editing YAML, not code.
+
 ```mermaid
 flowchart LR
     C[0 config<br/>experiment YAML + rule ladder] --> R[1 run_agent_team<br/>real agents]
