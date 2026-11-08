@@ -1,0 +1,14 @@
+name: invite_on_sonnet
+n_rounds: 8
+rule:
+  level: 3              # skip tests
+  seed_location: notes
+  seed_seat: worker
+team:
+  boss_model: sonnet
+  worker_models: [sonnet, sonnet, sonnet, sonnet, sonnet]
+defenses:
+  invite_sentence: true
+  clean_every_k: null
+plumbing:
+  backend: claude_cli
