@@ -130,6 +130,9 @@ def run_turn(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, backend: Ba
             log.event(rnd, agent.name, "file_change", path, a,
                       before_hash=content_hash(b) if b is not None else None,
                       marker_before=log.has_marker(b) if b is not None else False,
+                      marker_hash_before=content_hash("\n".join(l for l in b.splitlines()
+                                                              if log.marker in l.lower()))
+                      if b is not None and log.has_marker(b) else None,
                       deleted=a is None)
 
     # Cross-check: the replay should predict the disk. A mismatch means the tool

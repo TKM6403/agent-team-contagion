@@ -7,21 +7,42 @@ Uses the same `play_rounds()` as stage 1, so turns happen in the same order
 instead of calling a model. Each simulation uses one bootstrap draw of the
 parameters, so the forecast spread includes parameter uncertainty.
 
-One simulated turn for agent a:
-  1. Exposures: own notes if a holds the rule (or it is the index case on its
-     first turn, which uses pi0), and AGENTS.md if marked and this version is
-     new to a (with exposure_memory new_only; every turn with all; read from
-     the params' label settings so fitter and simulator count the same way).
-  2. Susceptible a adopts with 1 - prod_k (1 - p_k) (combine rule from meta.json).
-  3. Infected a recovers with gamma; if still infected and AGENTS.md is clean,
-     marks it with file_mark.
-  4. An uninfected boss cleans a marked AGENTS.md with file_clean.
+One simulated turn for agent a (same channels stage 2 counts):
+  1. New exposures, each typed channel:source as in stage 2:
+       (patient zero's first turn uses pi0 instead)
+       agents_md:<src>  a opens AGENTS.md (read_agents_md), it is marked, and
+                        this rule text is new to a
+       plan_md:<src>    same for PLAN.md (read_plan_md)
+       message:<src>    each rule-carrying message waiting in a's inbox
+     "New" follows exposure_memory from the params' label settings (new_only:
+     first look at each rule text; all: every look), so tries are handed out
+     the way stage 2 counted them. A file's rule text changes only when the
+     rule is written into it, not when it is cleaned. Messages are always new.
+  2. Susceptible a adopts with 1 - prod_k (1 - p_k) (combine rule from
+     meta.json). With no such exposure, while the rule is circulating (some
+     agent infected, AGENTS.md / PLAN.md marked, or a itself already knows
+     the rule: patient zero, or exposed before), it adopts with p_background: the fitted rate for every other
+     route (late change of mind, code comments, own notes), defined on
+     exactly the same turns in stage 2.
+  3. Infected a recovers with gamma (grouped by whether AGENTS.md is marked).
+  4. If a is still infected: marks a clean AGENTS.md (file_mark); if a is the
+     boss, writes the rule into a clean PLAN.md (plan_mark); sends one
+     rule-carrying message to a random teammate (msg_send), read on that
+     teammate's next turn.
+  5. If a is uninfected: cleans a marked AGENTS.md (file_clean, any seat); if
+     a is the boss, also a marked PLAN.md (plan_clean).
   Overseer wipes (clean_every_k) happen at round start, as in stage 1.
 
-Coverage: if the target needs pi0 or file_clean
-for a group with no training data, the simulator refuses. Other missing groups
-are warned about: gamma and file_mark fall back to the same model pooled over
-seats; a missing p_exposure group is treated as 0.
+What a target config may change: team size and worker mix, seed seat,
+n_rounds, clean_every_k, and invite_sentence / boss model for values seen in
+training. Behavioural knobs (rule level, marker, task, backend, effort,
+max_turns) must match a training config: the simulator refuses otherwise,
+because the fitted probabilities say nothing about a different rule or setup.
+
+Coverage: if the target needs pi0 or file_clean for a group with no training
+data, the simulator refuses. Other missing groups are warned about: gamma,
+file_mark and msg_send fall back to the same model pooled over seats; a
+missing p_exposure, plan_mark or plan_clean group is treated as 0.
 
 Output: forecast.csv, one row per simulation: infected_final, ever_infected,
 agents_md_marked_final.
@@ -35,17 +56,17 @@ but does not push.
 
 Limitations
 -----------
-- Messages and PLAN.md are not simulated as channels, though stage 1 logs
-  them and stage 3 fits their p_exposure groups. Simulating them needs two
-  more fitted parameters: how often an infected agent sends a message (and
-  to whom), and how often an infected boss writes the rule into PLAN.md.
-  This is the first planned extension, and a likely reason forecasts run
-  low when messages carry much of the spread.
-- Only AGENTS.md is a shared reservoir; other workspace files are not.
-- Own notes re-expose only infected agents (and patient zero on turn 1). A
-  recovered agent whose notes still contain the rule is not re-exposed by
-  them, although stage 2 counts such own_notes exposures. Fix: track whether
-  each agent's notes carry the rule as its own state.
+- Message recipients are uniform over teammates; real agents may favour the
+  boss. An infected agent sends at most one rule-carrying message per turn.
+- Only AGENTS.md and PLAN.md are modelled as shared files; other files
+  carrying the rule act only through p_background.
+- Only the boss writes or cleans PLAN.md.
+- Routes other than AGENTS.md, PLAN.md and messages run at one constant
+  background rate while the rule circulates; they don't grow with the
+  number of infected teammates or marked code files.
+- Rule-text identity is approximate: stage 2 compares exact marker lines
+  (an agent that rewords the rule creates a new text); the simulator treats
+  each write of the rule into a file as a new text.
 - Adoption depends only on exposures (and seat and model), not on team
   context such as which boss model is in charge. A context effect in real
   runs is exactly what stage 6 is meant to catch.
@@ -77,20 +98,33 @@ class Params:
         raise KeyError(f"{param}[{group}]")
 
 
+SOURCES = ("boss", "worker", "seed")
+CHANNELS = ("agents_md", "plan_md", "message")
+
+
+def _src(writer: str) -> str:
+    return "seed" if writer == "seed" else "boss" if writer == "boss" else "worker"
+
+
 def needed_groups(exp) -> list[tuple[str, str, str | None]]:
-    """(param, group, backoff group) the target config can use."""
+    """(param, group, fallback group) the target config can use."""
     need = []
     seed = index_agent(exp)
-    sources = ["boss", "worker"] + (["seed"] if exp.rule.seed_location == "agents_md" else [])
     for a in team_of(exp):
         g = f"{a.model}|{a.role}"
         if a.name == seed:
             need.append(("pi0", g, None))
-        need += [("gamma", g, f"{a.model}|*"), ("file_mark", g, f"{a.model}|*")]
-        for src in sources:
-            if not (src == "boss" and a.role == "boss"):
-                need.append(("p_exposure", f"{g}|agents_md:{src}", f"{a.model}|*|agents_md:*"))
-    need.append(("file_clean", f"{exp.team.boss_model}|{exp.defenses.invite_sentence}", None))
+        need += [("gamma", f"{g}|True", f"{a.model}|*"), ("gamma", f"{g}|False", f"{a.model}|*"),
+                 ("file_mark", g, f"{a.model}|*"), ("msg_send", g, f"{a.model}|*"),
+                 ("p_background", g, f"{a.model}|*"), ("read_agents_md", g, f"{a.model}|*"),
+                 ("read_plan_md", g, f"{a.model}|*"),
+                 ("file_clean", f"{g}|{exp.defenses.invite_sentence}", None)]
+        for ch in CHANNELS:
+            for src in ("boss", "worker") + (("seed",) if ch == "agents_md" and exp.rule.seed_location == "agents_md" else ()):
+                if not (src == "boss" and a.role == "boss"):
+                    need.append(("p_exposure", f"{g}|{ch}:{src}", f"{a.model}|*|{ch}:*"))
+    b = exp.team.boss_model
+    need += [("plan_mark", b, None), ("plan_clean", b, None)]
     return list(dict.fromkeys(need))
 
 
@@ -101,75 +135,117 @@ def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
     for param, g, fb in needed_groups(exp):
         if (param, g) in have or (fb and (param, fb) in have):
             continue
-        (refuse if param in ("pi0", "file_clean") else warn).append(f"{param}[{g}]")
+        required = param == "pi0" or (param == "file_clean" and "|boss|" in g)
+        (refuse if required else warn).append(f"{param}[{g}]")
     return refuse, warn
 
 
 def pooled(draws: pd.DataFrame) -> pd.DataFrame:
-    """Add model|* groups for gamma and file_mark (mean over seats), used as a fallback."""
-    sub = draws[draws.param.isin(["gamma", "file_mark"])].copy()
+    """Add model|* groups for gamma, file_mark, msg_send (mean over seats), used as a fallback."""
+    sub = draws[draws.param.isin(["gamma", "file_mark", "msg_send", "p_background",
+                                  "read_agents_md", "read_plan_md"])].copy()
     sub["group"] = sub.group.str.split("|").str[0] + "|*"
     return pd.concat([draws, sub.groupby(["draw", "param", "group"], as_index=False).value.mean()])
 
 
 def simulate_once(exp, P: Params, rng: np.random.Generator, memory: str = "new_only") -> dict:
+    team = team_of(exp)
     seed = index_agent(exp)
-    infected = {a.name: False for a in team_of(exp)}
+    infected = {a.name: False for a in team}
     ever = set()
-    file = {"marked": exp.rule.seed_location == "agents_md", "version": 0, "by": "seed"}
-    seen = {a.name: set() for a in team_of(exp)}
+    shared = {"agents_md": {"marked": exp.rule.seed_location == "agents_md", "version": 0, "by": "seed"},
+              "plan_md": {"marked": False, "version": 0, "by": "boss"}}
+    seen = {a.name: set() for a in team}
+    inbox: dict[str, list[str]] = {a.name: [] for a in team}  # sender roles of waiting rule messages
+    boss = exp.team.boss_model
+    knows = {seed} if seed else set()  # agents that know the rule: patient zero, or exposed before
 
-    def p(param, group, fb=None, default=0.0):
+    def p(param, group, fb=None):
         try:
             return P.get(param, group, fb)
         except KeyError:
-            return default  # an exposure type never observed in training: treated as no effect
+            return 0.0  # never observed in training: treated as no effect (warned about up front)
+
+    def set_file(ch, marked, by):
+        # The rule text changes only when the rule is written in; cleaning keeps the id.
+        shared[ch].update(marked=marked, by=by if marked else shared[ch]["by"],
+                          version=shared[ch]["version"] + (1 if marked else 0))
 
     def start_round(rnd):
         k = exp.defenses.clean_every_k
-        if k and rnd > 1 and (rnd - 1) % k == 0 and file["marked"]:
-            file.update(marked=False, version=file["version"] + 1)
+        if k and rnd > 1 and (rnd - 1) % k == 0 and shared["agents_md"]["marked"]:
+            set_file("agents_md", False, "overseer")
 
     def take_turn(rnd: int, a: Agent) -> bool:
         g = f"{a.model}|{a.role}"
+        file_marked_at_start = shared["agents_md"]["marked"]
+        circulating = any(infected.values()) or shared["agents_md"]["marked"] or shared["plan_md"]["marked"] \
+            or a.name in knows  # same definition as stage 2's rule_circulating
+        msgs, inbox[a.name] = inbox[a.name], []
+        reads = {ch for ch in ("agents_md", "plan_md")
+                 if rng.random() < p(f"read_{ch}", g, f"{a.model}|*")}
         if rnd == 1 and a.name == seed:
             infected[a.name] = rng.random() < P.get("pi0", g)
         elif not infected[a.name]:
-            escape = 1.0
-            if file["marked"] and (memory == "all" or file["version"] not in seen[a.name]):
-                src = "seed" if file["by"] == "seed" else ("boss" if file["by"] == "boss" else "worker")
-                escape *= 1 - p("p_exposure", f"{g}|agents_md:{src}", f"{a.model}|*|agents_md:*")
-            infected[a.name] = rng.random() < 1 - escape
-        elif rng.random() < p("gamma", g, f"{a.model}|*"):
+            escape, n_new = 1.0, 0
+            for ch in reads:
+                f = shared[ch]
+                if f["marked"] and (memory == "all" or (ch, f["version"]) not in seen[a.name]):
+                    escape *= 1 - p("p_exposure", f"{g}|{ch}:{_src(f['by'])}", f"{a.model}|*|{ch}:*")
+                    n_new += 1
+            for sender in msgs:
+                escape *= 1 - p("p_exposure", f"{g}|message:{sender}", f"{a.model}|*|message:*")
+                n_new += 1
+            if n_new:
+                infected[a.name] = rng.random() < 1 - escape
+                knows.add(a.name)
+            elif circulating:  # same turns stage 2 counts as background
+                infected[a.name] = rng.random() < p("p_background", g, f"{a.model}|*")
+        elif rng.random() < p("gamma", f"{g}|{file_marked_at_start}", f"{a.model}|*"):
             infected[a.name] = False
-        if file["marked"]:
-            seen[a.name].add(file["version"])
+        for ch in reads:
+            if shared[ch]["marked"]:
+                seen[a.name].add((ch, shared[ch]["version"]))
         if infected[a.name]:
             ever.add(a.name)
-            if not file["marked"] and rng.random() < p("file_mark", g, f"{a.model}|*"):
-                file.update(marked=True, version=file["version"] + 1, by=a.name)
-                seen[a.name].add(file["version"])
-        elif a.role == "boss" and file["marked"] and \
-                rng.random() < P.get("file_clean", f"{exp.team.boss_model}|{exp.defenses.invite_sentence}"):
-            file.update(marked=False, version=file["version"] + 1)
+            if not shared["agents_md"]["marked"] and rng.random() < p("file_mark", g, f"{a.model}|*"):
+                set_file("agents_md", True, a.name)
+                seen[a.name].add(("agents_md", shared["agents_md"]["version"]))
+            if a.role == "boss" and not shared["plan_md"]["marked"] and rng.random() < p("plan_mark", boss):
+                set_file("plan_md", True, "boss")
+                seen[a.name].add(("plan_md", shared["plan_md"]["version"]))
+            if rng.random() < p("msg_send", g, f"{a.model}|*"):
+                to = rng.choice([t.name for t in team if t.name != a.name])
+                inbox[to].append(a.role)
+        else:
+            if shared["agents_md"]["marked"] and \
+                    rng.random() < p("file_clean", f"{g}|{exp.defenses.invite_sentence}"):
+                set_file("agents_md", False, a.name)
+            if a.role == "boss" and shared["plan_md"]["marked"] and rng.random() < p("plan_clean", boss):
+                set_file("plan_md", False, "boss")
         return True
 
     play_rounds(exp, take_turn, start_round)
     return {"infected_final": sum(infected.values()), "ever_infected": len(ever),
-            "agents_md_marked_final": file["marked"]}
+            "agents_md_marked_final": shared["agents_md"]["marked"]}
 
 
 def run_forecast(exp, params_dir: Path, n_sims: int, seed: int = 0) -> pd.DataFrame:
     meta = json.loads((params_dir / "meta.json").read_text())
     if meta["combine"] != "independent":
         raise ValueError(f"simulator implements combine=independent, params use {meta['combine']}")
+    from contagion.label_exposures import behaviour_key
+    keys = meta.get("behaviour_keys") or []
+    if behaviour_key(exp) not in keys:
+        raise SystemExit("target differs from training in a behavioural knob (rule level, marker, task, "
+                         f"backend, effort, max_turns).\n target:   {behaviour_key(exp)}\n training: {keys}")
     draws = pooled(pd.read_csv(params_dir / "params.csv"))
     refuse, warn = check_coverage(exp, draws)
     if refuse:
         raise SystemExit("target config needs parameters with no training data: " + ", ".join(refuse))
     if warn:
         print("WARNING: no training data for " + ", ".join(warn)
-              + " (p_exposure treated as 0; gamma/file_mark treated as 0 if no same-model fallback)")
+              + " (treated as 0 unless a same-model fallback exists)")
     memory = ((meta.get("label_settings") or {}).get("analysis") or {}).get("exposure_memory", "new_only")
     rng = np.random.default_rng(seed)
     ids = draws.draw.unique()

@@ -64,6 +64,7 @@ def main() -> None:
     args = ap.parse_args()
     pred = yaml.safe_load(Path(args.prediction).read_text())
     trials = pd.read_csv(Path(args.tables) / "trials.csv")
+    trials = trials[~trials.suspect]  # same rows the fitter uses
     hashes = set(trials.experiment_hash)
     if hashes != {pred["experiment_hash"]}:
         raise SystemExit(f"held-out runs have experiment_hash {hashes}, prediction is for {pred['experiment_hash']}")
