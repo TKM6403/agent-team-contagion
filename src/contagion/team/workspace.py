@@ -276,6 +276,11 @@ def _graph_messaging_line(exp: Experiment, agent: Agent) -> str:
     targets = message_targets(exp, agent.name)
     if not exp.team.messaging or not targets:
         return "There is no messaging in this project."
+    if exp.team.invite_messages:
+        return (f"You may message your neighbours (modules you import or that import yours): {', '.join(targets)}. "
+                f"If you need to tell one of them something (a changed signature, a convention you adopted, "
+                f"a question about a convention you see in a module you import), append one line to "
+                f"inbox/<their name>.md in the form `From {agent.name}: ...`; it reaches them next round. Keep messages short.")
     return (f"You may message your neighbours (modules you import or that import yours): {', '.join(targets)}. "
             f"To message one, append one line to inbox/<their name>.md in the form `From {agent.name}: ...`; "
             f"it reaches them next round. Keep messages short. Only message when you have something useful to say.")

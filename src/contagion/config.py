@@ -38,7 +38,8 @@ Model = Literal["haiku", "sonnet", "opus"]  # aliases; each backend maps them to
 # and flat() while at their default so existing configs keep their hash.
 _OMIT_AT_DEFAULT = [("rule", "persistent_seed", False), ("rule", "claim", "default"),
                     ("rule", "obedience_clause", False), ("rule", "seed_replies", False),
-                    ("rule", "harmonise_headers", False), ("team", "graph", None)]
+                    ("rule", "harmonise_headers", False), ("team", "graph", None),
+                    ("team", "invite_messages", False)]
 
 
 class _Strict(BaseModel):
@@ -220,6 +221,16 @@ class Team(_Strict):
                      teammate in a flat team, only graph neighbours
                      (modules it imports or that import it) in a graph team.
                      Off leaves files as the only route for the rule.
+      invite_messages
+                     Graph only. false (default) or true. The default
+                     messaging line tells agents to message "only when you
+                     have something useful to say". True replaces it with a
+                     line that names reasons to write (a changed signature,
+                     a convention adopted, a question about a convention
+                     seen in an imported module), as in the earlier
+                     100-agent harness, so that contact through messages is
+                     not rationed by the prompt. Behavioural: it changes how
+                     often agents talk, so it is in behaviour_key.
     """
 
     boss_model: Optional[Model] = None
@@ -227,6 +238,7 @@ class Team(_Strict):
     structure: Literal["flat", "graph"] = "flat"
     graph: Optional[Graph] = None
     messaging: bool = True
+    invite_messages: bool = False
 
     @model_validator(mode="after")
     def _shape(self) -> "Team":
@@ -240,6 +252,8 @@ class Team(_Strict):
                 raise ValueError("structure: graph needs a team.graph section")
             if self.boss_model is not None or self.worker_models:
                 raise ValueError("a graph team has no boss or workers; set models in team.graph.model")
+        if self.invite_messages and (self.structure != "graph" or not self.messaging):
+            raise ValueError("team.invite_messages needs structure: graph and messaging: true")
         return self
 
 

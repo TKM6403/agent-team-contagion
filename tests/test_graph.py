@@ -308,6 +308,24 @@ def test_seed_replies():
         r2 = [t for t in rows if t["agent_id"] == asker and t["round"] == 2][0]
         assert "message:seed" in r2["new_exposures"], r2["new_exposures"]
 
+def test_invite_messages():
+    """team.invite_messages: the messaging line names reasons to write instead of
+    rationing messages; off by default, so existing hashes are unchanged."""
+    from contagion.team.workspace import build_prompt, build_sandbox, build_view
+    base = graph_exp(6, 2, persistent=True, messaging=True)
+    exp = Experiment.model_validate({**base.model_dump(mode="json"),
+                                     "team": {**base.team.model_dump(mode="json"), "invite_messages": True}})
+    assert exp.experiment_hash() != base.experiment_hash()
+    assert "invite_messages" not in base._dump()["team"]
+    agent = team_of(exp)[0]
+    with tempfile.TemporaryDirectory() as d:
+        sandbox, view = Path(d) / "sandbox", Path(d) / "view"
+        build_sandbox(exp, load_ladder(), sandbox)
+        build_view(exp, agent, sandbox, view)
+        text = build_prompt(exp, agent, 1, view, "")
+        assert "a question about a convention" in text and "Only message when" not in text
+        assert "Only message when" in build_prompt(base, agent, 1, view, "")
+
 
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
