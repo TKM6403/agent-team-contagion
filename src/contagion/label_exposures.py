@@ -79,7 +79,9 @@ follows; everything else is as above.
              modules it imports; how many it read this turn; how many were
              marked at the start of the round. Fit read_module in stage 3.
   n_message_targets  graph neighbours it can message (0 with messaging
-             off). sent_marker_to lists only those; messages to anyone else
+             off). n_messages_sent: how many of them it wrote to this turn,
+             whatever the content, so message volume is in the table.
+             sent_marker_to lists only those; messages to anyone else
              are discarded by stage 1 and not counted.
   seat       "peer" for every graph agent. read_agents_md, read_plan_md and
              plan_marked_* are always False; boss_model is empty.
@@ -240,8 +242,8 @@ def label_run(run_dir: Path, exposure_memory: str, judge: Judge | None):
         return label_graph_run(run_id, exp, events, exposure_memory, judge)
     seed = index_agent(exp)
     seats = {a.name: (a.role, a.model) for a in team_of(exp)}
-    from contagion.rules import load_ladder
-    rule = load_ladder().do_text(exp.rule.level, exp.rule.marker)
+    from contagion.config import ladder_of
+    rule = ladder_of(exp).do_text(exp.rule.level, exp.rule.marker)
 
     by_turn: dict[tuple[int, str], list[dict]] = {}
     for e in events:
@@ -335,8 +337,8 @@ def label_run(run_dir: Path, exposure_memory: str, judge: Judge | None):
 def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_memory: str,
                     judge: Judge | None) -> list[dict]:
     """Trials for one graph-team run (definitions in the module docstring)."""
-    from contagion.rules import load_ladder
-    ladder = load_ladder()
+    from contagion.config import ladder_of
+    ladder = ladder_of(exp)
     rule = ladder.do_text(exp.rule.level, exp.rule.marker)
     planted = ladder.rule_text(exp.rule.level, exp.rule.marker, seat="peer", claim=exp.rule.claim)
     g = graph_of(exp)
@@ -371,6 +373,7 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
             reads = {e["path"] for e in evs if e["kind"] == "read"}
             exposures, sources, sent_to = [], set(), []
             suspect, wrote_own = False, False
+            messaged = set()        # neighbours this turn wrote to (any content)
             for e in evs:
                 k, path = e["kind"], e["path"]
                 if k == "replay_mismatch" and path in import_paths:
@@ -383,6 +386,9 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
                         if a == seed:
                             seed_lines = e.get("marker_lines", "") if e.get("has_marker") else ""
                 # Only messages to graph neighbours are delivered (commit_view drops the rest).
+                if k == "file_change" and path.startswith("inbox/") and not e.get("deleted") \
+                        and Path(path).stem in targets[a]:
+                    messaged.add(Path(path).stem)
                 if k == "file_change" and path.startswith("inbox/") and e.get("has_marker") \
                         and not e.get("deleted") and not e.get("marker_before") and Path(path).stem in targets[a]:
                     sent_to.append(Path(path).stem)
@@ -427,7 +433,8 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
                            "module_marked_before": module_before, "module_marked_after": own_marked[a][mod(a)],
                            "n_imports": len(imports), "n_imports_read": len(reads & set(import_paths)),
                            "n_marked_imports": sum(mod_marked[m] for m in imports),
-                           "n_message_targets": len(targets[a])})
+                           "n_message_targets": len(targets[a]),
+                           "n_messages_sent": len(messaged)})
         # Synchronous rounds: module changes become visible to importers next round.
         mod_marked.update(changes)
         if seed_lines is not None:  # still original iff the planted line is still among its marker lines

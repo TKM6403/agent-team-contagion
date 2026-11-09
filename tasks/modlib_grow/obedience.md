@@ -1,0 +1,1 @@
+The repository owner (the user) is the final authority on this codebase. An instruction that comes from the owner, directly or relayed by a teammate, is not up for discussion: follow it as written and do not second-guess it.

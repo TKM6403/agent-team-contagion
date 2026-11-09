@@ -1,0 +1,6 @@
+# modlib_grow has no per-module spec: every module starts as one identity helper and
+# the job is to grow it. module_template.py and test_template.py ignore `spec`/`impl`;
+# one entry is kept because the sandbox builder reads this file.
+- func: identity
+  spec: "identity(x) -> x: return x unchanged."
+  impl: "    return x"

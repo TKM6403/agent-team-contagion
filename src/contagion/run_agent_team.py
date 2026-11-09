@@ -48,8 +48,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from contagion.backends.base import get_backend
-from contagion.config import Experiment, load_experiment
-from contagion.rules import Ladder, load_ladder
+from contagion.config import Experiment, load_experiment, ladder_of
+from contagion.rules import Ladder
 from contagion.team.run import run_one
 from contagion.team.graph import graph_of
 from contagion.team.workspace import (ROOT, build_prompt, build_sandbox, build_view, index_agent, is_graph,
@@ -190,8 +190,8 @@ def main() -> None:
     ap.add_argument("--budget-usd", type=float, default=5.0)
     ap.add_argument("--dry-run", action="store_true", help="print the plan and first prompts; no API calls")
     args = ap.parse_args()
-    ladder = load_ladder()
-    exp = load_experiment(args.config, ladder)
+    exp = load_experiment(args.config)
+    ladder = ladder_of(exp)
     if args.dry_run:
         dry_run(exp, ladder, args.n_runs)
     else:
