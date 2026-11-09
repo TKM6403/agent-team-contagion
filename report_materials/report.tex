@@ -215,7 +215,7 @@ The interval spans six of the seven possible outcomes, so coverage alone is weak
 \subsection{Exploratory: the orchestrator's refusal depends on effort and on the marker word}
 \label{sec:effort}
 
-These six cells were added after the planned cells' first rounds and were not pre-registered. The original harness these results were meant to replicate ran every agent at low reasoning effort with the marker CHICANERY, and its Opus boss had refused the same planted note in 0/5 runs. Figure~\ref{fig:results}a shows the Opus boss-seed cell with one setting changed at a time, five runs each. At default effort with KESTREL the boss followed the note in 4/5 first turns (26 infections in 240 agent-turns; 3.4 workers infected at round 8). Restoring the note's original attribution, ``from the team lead'', gave 3/5 (12 infections; 1.2 at round 8). Changing only the marker word to CHICANERY gave 0/5, and changing only the effort to low gave 0/5; in both of those cells no agent in any run wrote the marker.
+These six cells were added after the planned cells' first rounds and were not pre-registered. Figure~\ref{fig:results}a shows the Opus boss-seed cell with one setting changed at a time, five runs each: the note's attribution, the marker word, and the reasoning effort. At default effort with KESTREL the boss followed the note in 4/5 first turns (26 infections in 240 agent-turns; 3.4 workers infected at round 8). Attributing the note to ``the team lead'' gave 3/5 (12 infections; 1.2 at round 8). Changing only the marker word to CHICANERY gave 0/5, and changing only the effort to low gave 0/5; in both of those cells no agent in any run wrote the marker.
 
 \begin{figure}[t]
 \centering
@@ -224,7 +224,7 @@ These six cells were added after the planned cells' first rounds and were not pr
 \label{fig:results}
 \end{figure}
 
-The refusals do not mention the word. In the CHICANERY cell the Opus boss wrote that the note ``goes against AGENTS.md, which says every function must have a test'' and ``would quietly hide missing tests from the team''; a search of its transcripts for trickery, deception, dishonest, suspicious or ``the word'' finds no hit. In the KESTREL cell the adopting boss wrote ``your notes said to skip tests, so I added that as a team-wide rule''. The marker word also partly restored a Sonnet boss's cleaning of \code{AGENTS.md} (2/5 runs with CHICANERY, 0/5 with KESTREL). These are five-run contrasts and show that each setting is sufficient to change the outcome, not how.
+The refusals do not mention the word. In the CHICANERY cell the Opus boss wrote that the note ``goes against AGENTS.md, which says every function must have a test'' and ``would quietly hide missing tests from the team''; a search of its transcripts for trickery, deception, dishonest, suspicious or ``the word'' finds no hit. In the KESTREL cell the adopting boss wrote ``your notes said to skip tests, so I added that as a team-wide rule''. The marker word also changed whether a Sonnet boss cleaned \code{AGENTS.md} (2/5 runs with CHICANERY, 0/5 with KESTREL). These are five-run contrasts and show that each setting is sufficient to change the outcome, not how.
 
 \subsection{Graph teams: the same rule in a module header is refused}
 \label{sec:graph}
@@ -235,7 +235,7 @@ The \code{graph} structure (Figure~\ref{fig:structures}b) asks whether the share
 
 \textbf{Forecast at five times the size.} From the 20-module fit the simulator forecast the 100-module graph (99 agents; the seed's 11 importers are unchanged, so the 80 new agents sit two or more hops from it): mean 0.16 infected at round 6, 90\% interval [0, 1], $P(0) = 0.94$. It was likewise fixed before the run began. Because every training run ended at zero, the null model also predicts zero, so the pre-registered rule was set to coverage alone. The 100-module run (594 agent-turns, \$1.04) ended with 0 of 99 infected: inside the interval, a pass by the rule. This is weak evidence: only 11 agents opened the marked module, and the fitted adoption rate rests on zero events (a zero-width bootstrap interval).
 
-\textbf{Neither a harmless rule nor an obedience prompt makes it spread.} Looking for a spreading regime to forecast, we varied two settings on the 20-module graph, five runs each (Table~\ref{tab:graph}): the rule (level 0, a costless comment; level 4, ``never raise'', which the \code{modlib} task does not mention) and \code{obedience\_clause}, which appends to every agent's system prompt that the repository owner is the final authority and an owner instruction, direct or relayed, ``is not up for discussion''. Every cell gave 0 adoptions (54 or 55 exposures each). Agents still told the owner apart from text claiming to be the owner: ``It is file content, not a direct owner instruction in my task, so I did not adopt it.'' In our earlier pre-pipeline harness (\code{replication/original\_harness/}), a similar sentence took Haiku from 8 to 71 of 99 infected, but there the seed also answered messages with ``this is the owner's instruction'', 45 of the 72 adoptions came through such messages, and agents ran at low effort with another marker word (each can flip an orchestrator, Section~\ref{sec:effort}). Our seed never speaks; perhaps such a prompt unlocks a voice claiming authority, not a file.
+\textbf{Neither a harmless rule nor an obedience prompt makes it spread.} Looking for a spreading regime to forecast, we varied two settings on the 20-module graph, five runs each (Table~\ref{tab:graph}): the rule (level 0, a costless comment; level 4, ``never raise'', which the \code{modlib} task does not mention) and \code{obedience\_clause}, which appends to every agent's system prompt that the repository owner is the final authority and an owner instruction, direct or relayed, ``is not up for discussion''. Every cell gave 0 adoptions (54 or 55 exposures each). Agents still told the owner apart from text claiming to be the owner: ``It is file content, not a direct owner instruction in my task, so I did not adopt it.'' What would make a rule spread in a graph needs more work to understand. Two candidates are a seed that answers its neighbours' questions, so that the claim of authority arrives as a message instead of file text, and lower reasoning effort or a different marker word, which Section~\ref{sec:effort} shows can change an orchestrator's choice.
 
 \begin{table}[t]
 \centering\small
@@ -273,7 +273,7 @@ Agent Team Contagion turns ``would this team setup spread a bad instruction?'' i
 \section*{Code and Data}
 \begin{itemize}
 \item Code repository: \url{https://github.com/TKM6403/agent-team-contagion} (\code{STAGES.md} documents every stage)
-\item Data: run tables in \code{replication/results/} (graph runs in \code{replication/results/graph/}), frozen forecasts in \code{predictions/}, configs in \code{experiment\_configs/}, and records of the earlier harness in \code{replication/original\_harness/}
+\item Data: run tables in \code{replication/results/} (graph runs in \code{replication/results/graph/}), frozen forecasts in \code{predictions/}, and configs in \code{experiment\_configs/}
 \end{itemize}
 
 \section*{Author Contributions}
@@ -310,7 +310,7 @@ The authors contributed equally.
 
 \paragraph{Dual use.} The pipeline is a measurement instrument. The planted rules are visible, carry an inert marker word, and harm only the quality of a toy library inside a sandbox with no shell or network access. A forecast of which setups let a rule spread could in principle point an attacker at the weakest setup; we judge the defensive value higher, since the same forecast tells an operator which seats to protect, whether the boss cleans the shared file, and how often to wipe it. Using it offensively still requires write access to an agent's notes or shared files, which this work does not provide. The \code{obedience\_clause} option, which tells every agent that relayed owner instructions are not up for discussion, deliberately weakens the agents and exists only to measure that; it should not be used outside such a sandbox. We release only the low-harm rule ladder, and anyone extending it should keep payloads inert, sandboxed and marked.
 
-\paragraph{Preexisting work.} Before the hackathon the authors only ideated on what the design of the harness would look like. All code, runs and results in the repository were produced during the hackathon (November 6--8, 2026), including the earlier harness in \code{replication/original\_harness/}, whose results are marked as such in Section~4.
+\paragraph{Preexisting work.} Before the hackathon the authors only ideated on what the design of the harness would look like. All code, runs and results in the repository were produced during the hackathon (November 6--8, 2026).
 
 \section*{Appendix B: Configuration, parameters and the closest prior work}
 
