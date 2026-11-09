@@ -42,7 +42,7 @@ from contagion.rules import Ladder
 from contagion.team.graph import graph_of
 from contagion.team.turn import EventLog, run_graph_turn, run_turn
 from contagion.team.workspace import (Agent, build_sandbox, build_view, commit_view, is_graph, team_of,
-                                      write_seed_module)
+                                      seed_reply, write_seed_module)
 
 
 def oracle_clean(sandbox: Path, marker: str) -> bool:
@@ -133,6 +133,21 @@ def run_one(exp: Experiment, ladder: Ladder, run_dir: Path, backend: Backend) ->
         if graph:
             for a in team:
                 commit_view(exp, a, sandbox, views / a.name)
+            if exp.rule.seed_replies:
+                hub = graph_of(exp).hub
+                box = sandbox / "inbox" / f"{hub}.md"
+                asked = box.read_text() if box.exists() else ""
+                senders = []
+                for line in asked.splitlines():
+                    s = line.split(":", 1)[0].removeprefix("From ").strip() if line.startswith("From ") else ""
+                    if s in {a.name for a in team} and s not in senders:
+                        senders.append(s)
+                reply = seed_reply(exp, ladder)
+                for s in senders:
+                    with open(sandbox / "inbox" / f"{s}.md", "a") as f:
+                        f.write(reply + "\n")
+                    log.event(rnd, "seed", "seed_reply", f"inbox/{s}.md", reply, recipient=s)
+                box.write_text("")
         shutil.copytree(sandbox, run_dir / "snapshots" / f"r{rnd:02d}")
 
     try:
