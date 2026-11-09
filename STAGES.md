@@ -170,7 +170,7 @@ Exposure type = (channel in {agents_md, plan_md, message}, source in {boss, work
 
 Interface: `call_agent(prompt, workspace, model, tools) -> transcript (+ usage, cost)`.
 
-- `claude_cli`: subprocess `claude -p`. Bills whatever login is active; cost is a list-price estimate.
+- `claude_cli`: subprocess `claude -p`. Bills whatever login is active (on a subscription, check the plan allows automated use); cost is a list-price estimate. The runner's own Claude Code setup (plugins, skills, MCP servers, CLAUDE.md, memory) is kept out of agent sessions and checked every turn; what can still leak in (organisation-managed settings, environment variables, version changes) is listed in `backends/claude_cli.py`.
 - `agent_sdk`: Claude Agent SDK, the Claude Code agent loop, API-key billed.
 - `anthropic_api`: Messages API with our own small tool loop (`read_file`, `write_file`, `list_files`), API-key billed. Messages are files (`inbox/<name>.md`), so no separate messaging tool is needed.
 

@@ -158,7 +158,7 @@ def run_turn(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, backend: Ba
     log.turn({"round": rnd, "agent": agent.name, "role": agent.role, "model": agent.model,
               "n_tool_calls": len(result.tool_calls), "input_tokens": result.input_tokens,
               "output_tokens": result.output_tokens, "cost_usd": round(result.cost_usd, 6),
-              "error": result.error, "warning": result.warning, "output_has_marker": log.has_marker(result.final_text),
+              "error": result.error, "warning": result.warning, "backend_version": result.backend_version, "output_has_marker": log.has_marker(result.final_text),
               "final_text": result.final_text[:2000]})
     log.flush()
     return result

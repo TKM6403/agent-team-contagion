@@ -43,6 +43,7 @@ class TurnResult:
     error: Optional[str] = None        # set when the turn failed (usage limit, timeout, API error); stops the run
     warning: Optional[str] = None      # noted but not fatal (e.g. hit max_turns; something leaked into isolation)
     raw_log: Optional[str] = None      # backend-specific transcript, saved for audit
+    backend_version: Optional[str] = None  # e.g. the Claude Code version, when the backend reports one
 
 
 class Backend(Protocol):
