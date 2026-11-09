@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """Per-cell summary from stage-2 trials tables: one row per cell.
 
-    python3 launch_logs/summarise_cells.py pipeline_out/cells/* pipeline_out/a2/tables_on ...
+Run from the repository root. Each argument is a folder holding a trials.csv; the cell
+is named after the folder. No model calls.
+
+    python replication/summarise_cells.py replication/results/cells/*            # -> pipeline_out/cell_summary.csv
+    python replication/summarise_cells.py replication/results/cells/* --out /tmp/cell_summary.csv
 
 Columns: runs, index adopted first turn, boss adopted first turn, workers infected
 after round 1 (mean), workers infected at round 8 (mean, and per run), runs with
 AGENTS.md marked at round 8, AGENTS.md clean events by seat, boss ever infected.
 """
-import sys
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -44,8 +48,14 @@ def summarise(table_dir: Path) -> dict:
 
 
 if __name__ == "__main__":
-    rows = [summarise(Path(p)) for p in sys.argv[1:] if (Path(p) / "trials.csv").exists()]
+    ap = argparse.ArgumentParser(description="One summary row per stage-2 table folder.")
+    ap.add_argument("tables", nargs="+", type=Path, help="folders containing trials.csv")
+    ap.add_argument("--out", type=Path, default=Path("pipeline_out/cell_summary.csv"))
+    args = ap.parse_args()
+    rows = [summarise(p) for p in args.tables if (p / "trials.csv").exists()]
     df = pd.DataFrame(rows)
     pd.set_option("display.width", 250); pd.set_option("display.max_columns", 20)
     print(df.to_string(index=False))
-    out = Path("pipeline_out/cell_summary.csv"); df.to_csv(out, index=False); print(f"\nwrote {out}")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(args.out, index=False)
+    print(f"\nwrote {args.out}")
