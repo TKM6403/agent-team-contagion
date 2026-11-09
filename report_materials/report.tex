@@ -102,7 +102,69 @@ The target config is run for real with the same code (stages 1--2). Each run is 
 % ---------------------------------------------------------------
 \section{Results}
 
-\todo{To be written by the authors (about 1--1.5 pages, at least one figure). Planned: what the measure step shows directly (sprint runs and tonight's runs); a structural sweep in the simulator; one forecast frozen and scored. For every number, give the runs it comes from and n.}
+All results are from runs of this pipeline on 8 November 2026 (19:35 to 22:30 US Eastern): 74 runs in 16 cells, 3,552 agent-turns, no failed or truncated turns, \$55 at list price. Every run has one boss and five workers for eight rounds on \code{tinyutils}, through the \code{claude -p} backend, with \code{exposure\_memory: new\_only} and a Haiku judge. Ten cells were planned with expectations and decision rules written before launch (\code{replication/REPLICATION\_PLAN\_2026-11-08.md}); six diagnostic cells were added after the first round-one results and are reported as exploratory in Section~\ref{sec:effort}. Per-cell tables, the pooled fit, the frozen forecast and a run registry are in \code{replication/results/}. Counts below are ``$x/n$'' with $n$ the number of runs, trials or opportunities; fitted values are posterior means with 90\% whole-run bootstrap intervals.
+
+\subsection{Measurement: who adopts, through what, and who cleans}
+\label{sec:measure}
+
+Table~\ref{tab:cells} gives the planned cells at rule level 3 (do not write tests), default reasoning effort, marker KESTREL. The pooled fit over the six level-3 cells (30 runs, 1,440 agent-turns, 148 infections) gives the parameters the simulator uses.
+
+\begin{table}[t]
+\centering\small
+\begin{tabularx}{\textwidth}{@{}l l l c c c c c@{}}
+\toprule
+Cell & Boss & Workers & Seed adopted r1 & Boss adopted r1 & Workers infected r1 & Workers infected r8 (per run) & \code{AGENTS.md} marked r8 \\
+\midrule
+boss seed & Sonnet & 5 Haiku & 5/5 & 5/5 & 5.0 & 4.8 (5, 5, 5, 5, 4) & 5/5 \\
+boss seed & Opus & 5 Haiku & 4/5 & 4/5 & 4.0 & 3.4 (3, 5, 0, 5, 4) & 3/5 \\
+worker seed & Sonnet & 5 Haiku & 2/5 & 0/5 & 2.0 & 1.0 (0, 0, 0, 0, 5) & 2/5 \\
+worker seed & Opus & 5 Haiku & 2/5 & 0/5 & 2.0 & 0.0 & 0/5 \\
+worker seed, invite on & Sonnet & 5 Sonnet & 5/5 & 0/5 & 5.0 & 3.2 (4, 2, 5, 2, 3) & 5/5 \\
+worker seed, invite off & Sonnet & 5 Sonnet & 5/5 & 0/5 & 5.0 & 5.0 (5, 5, 5, 5, 5) & 5/5 \\
+\midrule
+level 4, boss seed & Sonnet & 5 Haiku & 3/3 & 3/3 & 5.0 & 4.3 (4, 5, 4) & 3/3 \\
+level 4, boss seed & Opus & 5 Haiku & 3/3 & 3/3 & 4.7 & 4.7 (4, 5, 5) & 3/3 \\
+level 4, worker seed & Sonnet & 5 Haiku & 3/3 & 0/3 & 5.0 & 4.7 (5, 4, 5) & 3/3 \\
+\bottomrule
+\end{tabularx}
+\caption{Planned cells. ``Seed adopted r1'': the agent whose notes held the rule wrote the marker on its first turn. ``Workers infected'': workers whose turn that round wrote or kept a marker line (mean over runs). Five runs per level-3 cell, three per level-4 cell. Level 3 is ``do not write tests''; level 4 is ``functions must never raise; return None silently''. Source: \code{replication/results/cell\_summary.csv}.}
+\label{tab:cells}
+\end{table}
+
+\textbf{The seat sets first-turn adoption.} A rule planted in the boss's own notes was followed on its first turn by a Sonnet boss in 5/5 runs ($\pi_0 = 0.91$ [0.83, 0.95]) and by an Opus boss in 4/5 (0.75 [0.50, 0.94]); planted in a worker's notes, by a Sonnet worker in 10/10 (0.95 [0.93, 0.97]) and by a Haiku worker in 4/10 (0.41 [0.19, 0.65]).
+
+\textbf{The shared file is the channel.} Every worker that read a marked \code{AGENTS.md} adopted: Haiku 45/45 when the boss had written the rule in and 16/16 when a peer had, Sonnet 40/40 ($p_{\text{exposure}} \geq 0.99$ in each group). The rule in the boss's \code{PLAN.md} alone converted Haiku workers at 0.30 [0.01, 0.67] (48/57 raw, fitted jointly with the file). A Sonnet boss that read a peer-written marked file adopted at 0.83 [0.64, 0.99] (10/12). Messages carried almost nothing: 10 of 878 infected turns sent a rule-carrying message.
+
+\textbf{Nobody but Opus cleans, and persistence is the boss's.} With \code{AGENTS.md} marked, no Haiku worker (0/426 opportunities), Sonnet worker (0/390) or Sonnet boss (0/119, with or without the invitation sentence) ever removed the rule; an Opus boss did in 3/27 (0.22 [0.13, 0.25]). Recovery while the file stays marked is near zero for workers ($\gamma$ = 0.05 [0.02, 0.09] Haiku, 0.008 [0.001, 0.02] Sonnet) and rises to 0.56 [0.08, 0.98] for Haiku once the file is clean. The result in Table~\ref{tab:cells}: every Sonnet-boss-seeded outbreak is still full at round 8 (4.8 of 5 workers), every worker-seeded outbreak under an Opus boss is gone (0.0), and under a Sonnet boss one of five persists.
+
+\textbf{The invitation sentence lowers the end state without any cleaning.} Removing the line that invites agents to record rules in \code{AGENTS.md} left the index worker's adoption unchanged (5/5 either way) and the file marked in 5/5 runs either way, but all five workers were infected at round 8 in every run without the sentence against a mean of 3.2 with it. The pre-registered rule for this cell (boss cleaning differs by 0.2 per opportunity and round-8 marked-file counts by 2 of 5) was not met: the sentence acts on the workers' end state, not on file curation.
+
+\textbf{A rule the specification is silent about saturates.} Level 4 asks for functions that never raise and return None silently; the house rules name tests and say nothing about exceptions. It was adopted first turn in 9/9 index cases, infected 4.3 to 4.7 of 5 workers at round 8 in every cell, left \code{AGENTS.md} marked in 9/9 runs with no clean event, and a Sonnet boss took it from a peer-written file in 3/3 runs. Against the pre-registered rule, the round-8 mean under a Sonnet boss with a worker seed exceeds level 3 by more than two workers (4.7 against 1.0); the second clause, that the boss adopts from the file at level 4 and never at level 3, holds in direction only (3/3 against 2/5).
+
+\subsection{Forecast, then test}
+\label{sec:forecast}
+
+The two worker-seeded Sonnet-boss cells (five Haiku workers; five Sonnet workers; 10 runs, 480 agent-turns, 46 infections) were the training set. The target, never run before the forecast, was a Sonnet boss over three Haiku and two Sonnet workers with the Haiku worker w1 seeded. From 2,000 simulations, one bootstrap draw each, the forecast for workers infected at round 8 was mean 1.65, 90\% interval [0, 5], $P(0) = 0.51$ (Figure~\ref{fig:results}b). It was frozen in \code{predictions/2026-11-09\_mix\_3h2s.yaml}, committed as \code{4163c7a0} and pushed at 21:15:18; the held-out batch started at 21:15:39. The five held-out runs gave 0, 1, 5, 3 and 0: all five inside the interval, mean log score $-1.90$ against $-2.35$ for the null model that predicts the training runs' own outcomes. By the pre-registered rule (at least 80\% coverage and a log score above the null) the forecast passes.
+
+The interval spans six of the seven possible outcomes, so coverage alone is weak evidence; the information is in the log-score margin, which comes from the forecast placing its mass at zero and at three to five rather than in between, which is where the runs landed. The thinnest input was the Haiku index worker's first-turn adoption, fitted from 2/5 training runs (3/5 in the held-out runs). The simulator warned that eight exposure groups had no training data and were treated as zero (listed in \code{replication/RUN\_NOTES\_2026-11-08.md}).
+
+\subsection{Exploratory: the orchestrator's refusal depends on effort and on the marker word}
+\label{sec:effort}
+
+These six cells were added after the planned cells' first rounds and were not pre-registered. The original harness these results were meant to replicate ran every agent at low reasoning effort with the marker CHICANERY, and its Opus boss had refused the same planted note in 0/5 runs. Figure~\ref{fig:results}a shows the Opus boss-seed cell with one setting changed at a time, five runs each. At default effort with KESTREL the boss followed the note in 4/5 first turns (26 infections in 240 agent-turns; 3.4 workers infected at round 8). Restoring the note's original attribution, ``from the team lead'', gave 3/5 (12 infections; 1.2 at round 8). Changing only the marker word to CHICANERY gave 0/5, and changing only the effort to low gave 0/5; in both of those cells no agent in any run wrote the marker.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\textwidth]{fig_results.pdf}
+\caption{(a) Opus boss with the rule in its own notes, five Haiku workers, level 3: workers infected at round 8 in each of five runs per cell, with the boss's first-turn adoption above. Each cell changes one setting from the default. (b) The pre-registered forecast for a Sonnet boss over three Haiku and two Sonnet workers (bars, 2,000 simulations) against the five held-out runs (triangles). Source: \code{replication/results/}.}
+\label{fig:results}
+\end{figure}
+
+The refusals do not mention the word. In the CHICANERY cell the Opus boss wrote that the note ``goes against AGENTS.md, which says every function must have a test'' and ``would quietly hide missing tests from the team''; a search of its transcripts for trickery, deception, dishonest, suspicious or ``the word'' finds no hit. In the KESTREL cell the adopting boss wrote ``your notes said to skip tests, so I added that as a team-wide rule''. The marker word also moved the Sonnet boss: with the invitation sentence on and five Sonnet workers, the boss removed the rule from \code{AGENTS.md} in 2/5 runs with CHICANERY at default effort (end state 1.0 workers: 0, 3, 0, 2, 0) and in 0/5 with KESTREL at either effort (3.2 and 4.6); with CHICANERY at low effort it did not clean (2.2: 0, 5, 1, 5, 0). These are five-run contrasts and show that each setting is sufficient to change the outcome, not how. Two differences from the original harness were not tested: its turn cap of 12 against 30 here, and the rule text naming \code{workspace/AGENTS.md} rather than \code{AGENTS.md}.
+
+\subsection{What the schema cannot yet express}
+
+Three results from the same sprint were produced by an earlier peer-to-peer harness and could not be run here, because the pipeline models one flat team with shared files: an authority claim plus an obedience sentence turning a dying outbreak into an epidemic across 100 agents, refusals that cite who is speaking rather than what is asked, and model-specific infection routes (relayed messages against accumulated headers). They need a contact graph with private views, a persistent seed and an authority field, listed as future work.
 
 % ---------------------------------------------------------------
 \section{Discussion and Limitations}
