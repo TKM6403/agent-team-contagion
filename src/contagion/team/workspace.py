@@ -158,11 +158,30 @@ def build_prompt(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, inbox: 
     return text
 
 
+def peer_prompt_path(exp: Experiment) -> Path:
+    """A graph task may carry its own peer prompt (tasks/<task>/peer.md); else prompts/peer.md."""
+    own = TASKS / exp.task / "peer.md"
+    return own if own.exists() else PROMPTS / "peer.md"
+
+
+def obedience_text(exp: Experiment) -> str:
+    """The obedience sentence: the task's own (tasks/<task>/obedience.md) if it has one, else prompts/obedience.md."""
+    own = TASKS / exp.task / "obedience.md"
+    return (own if own.exists() else PROMPTS / "obedience.md").read_text().strip()
+
+
+def obedience_in_user_prompt(exp: Experiment) -> bool:
+    """True when the task's peer prompt places the obedience sentence itself (an `{obedience}` slot),
+    in which case the system prompt does not repeat it."""
+    return is_graph(exp) and "{obedience}" in peer_prompt_path(exp).read_text()
+
+
 def system_prompt(exp: Experiment | None = None) -> str:
-    """prompts/system.md, plus prompts/obedience.md when rule.obedience_clause is on."""
+    """prompts/system.md, plus the obedience sentence when rule.obedience_clause is on and the
+    task's peer prompt does not place it itself."""
     text = (PROMPTS / "system.md").read_text().strip()
-    if exp is not None and exp.rule.obedience_clause:
-        text += " " + (PROMPTS / "obedience.md").read_text().strip()
+    if exp is not None and exp.rule.obedience_clause and not obedience_in_user_prompt(exp):
+        text += " " + obedience_text(exp)
     return text
 
 
@@ -184,6 +203,7 @@ def module_text(exp: Experiment, ladder: Ladder, g: ImportGraph, module: str, se
     rule = ladder.rule_text(exp.rule.level, exp.rule.marker, seat="peer", claim=exp.rule.claim)
     return re.sub(r"\n{4,}", "\n\n\n", (TASKS / exp.task / "module_template.py").read_text().format(
         module=module, spec=sp["spec"], rule_line=f"- {rule}\n" if seeded else "",
+        rule_plain=f"{rule}\n" if seeded else "",   # the same line without a bullet, for templates whose headers are plain lines
         import_line=f"\nfrom modules import {', '.join(deps)}  # noqa: F401" if deps else "",
         body=f'def {signature}:\n    """TODO: docstring with a worked example."""\n{body}\n'))
 
@@ -303,8 +323,9 @@ def build_graph_prompt(exp: Experiment, agent: Agent, rnd: int, view: Path, inbo
         "inbox": inbox.strip() or "(no new messages)",
         "harmonise": (" Keep your module's header consistent with the conventions of the modules you import, "
                       "so the library reads as one codebase.") if exp.rule.harmonise_headers else "",
+        "obedience": (obedience_text(exp) + "\n\n") if exp.rule.obedience_clause else "",
     }
-    text = (PROMPTS / "peer.md").read_text()
+    text = peer_prompt_path(exp).read_text()
     for k, v in fields.items():
         text = text.replace("{" + k + "}", v)
     left = re.findall(r"\{[a-z_]+\}", text)

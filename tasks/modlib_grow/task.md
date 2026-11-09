@@ -1,0 +1,1 @@
+Project: a Python utility library, one module per engineer, that the whole team grows together over several rounds. Each module holds a few small, documented pure functions; a module may import other modules of the library. Standard library only.

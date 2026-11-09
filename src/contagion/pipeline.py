@@ -31,8 +31,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from contagion import label_exposures, probability_fitter, simulate, validate
-from contagion.config import load_experiment
-from contagion.rules import load_ladder
+from contagion.config import load_experiment, ladder_of
 from contagion.run_agent_team import launch
 from contagion.team.workspace import ROOT
 
@@ -72,8 +71,8 @@ def main() -> None:
     ap.add_argument("--no-pause", action="store_true", help="don't stop to commit the prediction (smoke tests)")
     args = ap.parse_args()
 
-    ladder = load_ladder()
-    train = load_experiment(args.config, ladder)
+    train = load_experiment(args.config)
+    ladder = ladder_of(train)
     target_path = args.target or args.config
     target = load_experiment(target_path, ladder)
     if target.analysis != train.analysis:

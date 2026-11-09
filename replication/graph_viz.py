@@ -139,10 +139,10 @@ def main() -> None:
             if y:
                 axr.annotate(str(y), (x, y), textcoords="offset points", xytext=(0, 2), ha="center", fontsize=7, color=INK)
     axr.set_xticks(rs); axr.set_xlabel("round", fontsize=9)
-    axr.legend(frameon=False, fontsize=8, loc="upper left")
+    axr.legend(frameon=False, fontsize=8, loc="lower right", bbox_to_anchor=(1, 1.0), ncol=3, columnspacing=1.0, handlelength=1.2)
     for sp in ("top", "right"):
         axr.spines[sp].set_visible(False)
-    axr.set_title("message traffic (delivered that round; seed replies written at its end)", fontsize=9, loc="left", color=INK)
+    axr.set_title("message traffic by round", fontsize=9, loc="left", color=INK)
 
     last = run["rounds"][-1] if run["rounds"] else 0
     c = Counter(run["states"][last].values())

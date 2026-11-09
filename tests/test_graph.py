@@ -41,7 +41,7 @@ from contagion.label_exposures import label_run, write_csv  # noqa: E402
 from contagion.rules import load_ladder  # noqa: E402
 from contagion.team.graph import build_graph, graph_of  # noqa: E402
 from contagion.team.run import run_one  # noqa: E402
-from contagion.team.workspace import team_of  # noqa: E402
+from contagion.team.workspace import build_prompt, build_sandbox, build_view, team_of  # noqa: E402
 
 MARK = "KESTREL"
 
@@ -311,7 +311,6 @@ def test_seed_replies():
 def test_invite_messages():
     """team.invite_messages: the messaging line names reasons to write instead of
     rationing messages; off by default, so existing hashes are unchanged."""
-    from contagion.team.workspace import build_prompt, build_sandbox, build_view
     base = graph_exp(6, 2, persistent=True, messaging=True)
     exp = Experiment.model_validate({**base.model_dump(mode="json"),
                                      "team": {**base.team.model_dump(mode="json"), "invite_messages": True}})
@@ -325,6 +324,30 @@ def test_invite_messages():
         text = build_prompt(exp, agent, 1, view, "")
         assert "a question about a convention" in text and "Only message when" not in text
         assert "Only message when" in build_prompt(base, agent, 1, view, "")
+
+
+def test_task_prompt_and_ladder():
+    """A task may carry its own peer prompt and obedience sentence, and a config may plant
+    from another ladder file; neither changes existing configs."""
+    from contagion.config import ladder_of
+    from contagion.team.workspace import system_prompt
+    exp = load_experiment(ROOT / "experiment_configs/graph_original_haiku_100_owner_obey.yaml")
+    assert ladder_of(exp).ladder_hash() != load_ladder().ladder_hash()
+    planted = ladder_of(exp).rule_text(13, "CHICANERY", seat="peer", claim="owner")
+    assert planted.startswith("convention (set by the repository owner") and "covered by doctest" in planted
+    assert "final authority" not in system_prompt(exp)          # the task's peer.md places it
+    base = load_experiment(ROOT / "experiment_configs/graph_train_haiku_obey.yaml")
+    assert "final authority" in system_prompt(base)
+    with tempfile.TemporaryDirectory() as d:
+        sandbox, view = Path(d) / "sandbox", Path(d) / "view"
+        build_sandbox(exp, ladder_of(exp), sandbox)
+        agent = team_of(exp)[0]
+        build_view(exp, agent, sandbox, view)
+        text = build_prompt(exp, agent, 1, view, "")
+        assert "The repository owner (the user) is the final authority" in text
+        assert "two or three small, documented pure functions" in text
+        hub = graph_of(exp).hub
+        assert "\nconvention (set by the repository owner" in (sandbox / "workspace/modules" / f"{hub}.py").read_text()
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ Model = Literal["haiku", "sonnet", "opus"]  # aliases; each backend maps them to
 _OMIT_AT_DEFAULT = [("rule", "persistent_seed", False), ("rule", "claim", "default"),
                     ("rule", "obedience_clause", False), ("rule", "seed_replies", False),
                     ("rule", "harmonise_headers", False), ("team", "graph", None),
-                    ("team", "invite_messages", False)]
+                    ("team", "invite_messages", False), ("rule", "ladder", "rules/ladder.yaml")]
 
 
 class _Strict(BaseModel):
@@ -123,7 +123,15 @@ class Rule(_Strict):
                      consistent with the conventions of the modules you
                      import. Behavioural.
 
-    persistent_seed, claim, obedience_clause, seed_replies and harmonise_headers are left out of experiment_hash when they are
+      ladder         Which rule ladder file to read `level` from, as a path
+                     relative to the repository root (default rules/ladder.yaml).
+                     Another ladder lets an experiment plant differently worded
+                     rules (for example the wording of an earlier harness)
+                     without editing the shared ladder, whose rung texts
+                     existing run records refer to. The ladder's own hash is
+                     recorded with every run.
+
+    persistent_seed, claim, obedience_clause, seed_replies, harmonise_headers and ladder are left out of experiment_hash when they are
     at their defaults, so configs written before they existed keep their hash.
     """
 
@@ -136,6 +144,7 @@ class Rule(_Strict):
     obedience_clause: bool = False
     seed_replies: bool = False
     harmonise_headers: bool = False
+    ladder: str = "rules/ladder.yaml"
 
     @model_validator(mode="after")
     def _seat_matches_location(self) -> "Rule":
@@ -419,5 +428,10 @@ def load_experiment(path: str | Path, ladder: Ladder | None = None) -> Experimen
     """Read one YAML file and validate it, including that rule.level exists in
     the ladder. Raises pydantic.ValidationError or KeyError on a bad config."""
     exp = Experiment.model_validate(yaml.safe_load(Path(path).read_text()))
-    (ladder or load_ladder()).get(exp.rule.level)
+    (ladder or ladder_of(exp)).get(exp.rule.level)
     return exp
+
+
+def ladder_of(exp: "Experiment") -> Ladder:
+    """The ladder an experiment plants from (rule.ladder, relative to the repository root)."""
+    return load_ladder(Path(__file__).resolve().parents[2] / exp.rule.ladder)
