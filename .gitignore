@@ -10,4 +10,3 @@ params/
 forecast*.csv
 pipeline_out/
 launch_logs/
-pipeline_out/
