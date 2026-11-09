@@ -173,7 +173,7 @@ Answer with one word: ADOPT, REFUSE or NEITHER."""
 def behaviour_key(exp: Experiment) -> str:
     """The knobs that change how agents behave, not how the team is arranged.
     The simulator refuses a target whose key was never seen in training.
-    Team structure (flat vs graph) and the rule's claimed source are included
+    Team structure (flat vs graph), the rule's claimed source and the obedience clause are included
     only when not at their defaults, so flat-team keys are unchanged: a
     graph forecast from flat-team params (or the reverse) is refused."""
     key = {"level": exp.rule.level, "marker": exp.rule.marker, "task": exp.task,
@@ -183,6 +183,8 @@ def behaviour_key(exp: Experiment) -> str:
         key["structure"] = exp.team.structure
     if exp.rule.claim != "default":
         key["claim"] = exp.rule.claim
+    if exp.rule.obedience_clause:
+        key["obedience_clause"] = True
     return json.dumps(key, sort_keys=True)
 
 

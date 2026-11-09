@@ -40,6 +40,7 @@ Each row: the report item, the config(s) in `../experiment_configs/` (or `../pre
 | Effort and marker cells (Results 4.3, Figure 2a) | `flip_opus_boss_seed_chicanery`, `flip_opus_boss_seed_effortlow`, `invite_on_sonnet_effortlow`, `invite_on_sonnet_chicanery`, `invite_on_sonnet_chicanery_effortlow` | as Table 1, five runs each. The "from the team lead" cell (`flip_opus_boss_seed_teamlead`) has no committed config: copy `flip_opus_boss_seed.yaml` with that name and set `source.boss: ", from the team lead"` in `rules/ladder.yaml` (this changes `ladder_hash`) | `results/cells/<cell>/` |
 | Graph training, level 3 (Results 4.4) | `graph_train_haiku` | `python -m contagion.run_agent_team experiment_configs/graph_train_haiku.yaml --n-runs 5 --jobs 5 --budget-usd 10`, `python -m contagion.label_exposures experiment_configs/graph_train_haiku.yaml --batch <batch_id> --out pipeline_out/graph_l3/tables`, `python -m contagion.probability_fitter pipeline_out/graph_l3/tables --out pipeline_out/graph_l3/params --n-draws 200` | `results/graph/l3_train/` |
 | Graph training, level 0 (Results 4.4) | `graph_train_haiku_l0` | run and label as above, `--out pipeline_out/graph_l0/tables` | `results/graph/l0_train/` |
+| Graph training with the obedience clause, levels 3 and 4 (Results 4.4, Table 2) | `graph_train_haiku_obey`, `graph_train_haiku_obey_l4` | run and label as above, `--out pipeline_out/graph_obey/tables` and `pipeline_out/graph_obey_l4/tables` | `results/graph/obey_train/`, `results/graph/obey_l4_train/` |
 | 100-module forecast (Results 4.4) | target `graph_target_haiku_100`; frozen `predictions/2026-11-09_graph_l3_100.yaml` | `python -m contagion.simulate experiment_configs/graph_target_haiku_100.yaml --params pipeline_out/graph_l3/params --out pipeline_out/graph_l3/forecast_100.csv --preregister graph_l3_100`, commit and push `predictions/`, then `python -m contagion.run_agent_team experiment_configs/graph_target_haiku_100.yaml --n-runs 1 --budget-usd 10`, `python -m contagion.label_exposures experiment_configs/graph_target_haiku_100.yaml --batch <batch_id> --out pipeline_out/graph_l3/tables_heldout`, `python -m contagion.validate predictions/<date>_graph_l3_100.yaml pipeline_out/graph_l3/tables_heldout --training-tables pipeline_out/graph_l3/tables` | `results/graph/l3_100_heldout/` |
 | Figure 2 | none | `python replication/fig_results.py` | `../report_materials/fig_results.pdf` |
 
@@ -111,7 +112,9 @@ At list price, from `results/runs.csv` and `results/graph/runs.csv`:
 | `graph_smoke` (5 modules, 2 rounds) | 1 | 8 | $0.02 | $0.02 |
 | `graph_train_haiku` (20 modules) | 5 | 570 | $1.05 | $0.21 |
 | `graph_train_haiku_l0` (20 modules) | 5 | 570 | $0.99 | $0.20 |
+| `graph_train_haiku_obey` (20 modules) | 5 | 570 | $1.09 | $0.22 |
+| `graph_train_haiku_obey_l4` (20 modules) | 5 | 570 | $1.08 | $0.22 |
 | `graph_target_haiku_100` (100 modules) | 1 | 594 | $1.04 | $1.04 |
-| **`graph` total** (report counts the 11 runs without the smoke test: 1,734 turns, $3.08) | 12 | 1,742 | **$3.10** | |
+| **`graph` total** (report counts the 21 runs without the smoke test: 2,874 turns, $5.25) | 22 | 2,882 | **$5.27** | |
 
 Opus-boss cells cost about three times the Sonnet-boss ones. A five-run `flat` cell is $1.30 to $5.80; a 20-module `graph` training batch is about $1.

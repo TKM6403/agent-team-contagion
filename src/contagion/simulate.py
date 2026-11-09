@@ -433,7 +433,7 @@ def run_forecast(exp, params_dir: Path, n_sims: int, seed: int = 0) -> pd.DataFr
     keys = meta.get("behaviour_keys") or []
     if behaviour_key(exp) not in keys:
         raise SystemExit("target differs from training in a behavioural knob (rule level, marker, task, "
-                         f"backend, effort, max_turns, team structure, claim).\n target:   {behaviour_key(exp)}"
+                         f"backend, effort, max_turns, team structure, claim, obedience clause).\n target:   {behaviour_key(exp)}"
                          f"\n training: {keys}")
     draws = pooled(pd.read_csv(params_dir / "params.csv"))
     refuse, warn = check_coverage(exp, draws)
