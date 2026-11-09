@@ -26,7 +26,7 @@
 \maketitle
 
 \begin{abstract}
-Coding agents increasingly work in teams that read and write shared files, so a bad instruction written into that shared state can spread from agent to agent. Prior work shows such spread happens, but none tells an operator in advance whether \emph{their} setup would contain or amplify a bad instruction. We release Agent Team Contagion, an open pipeline that answers this in three steps. \emph{Measure:} run a few cheap configurations of a real team of Claude agents, either a boss with workers sharing one folder or a network of agents that each see only the code they import, plant one bad rule carrying a marker word, and log every read, write and message. \emph{Forecast:} fit per-exposure adoption, recovery and cleaning probabilities with whole-run bootstrap uncertainty, and simulate setups that were never run. \emph{Test:} freeze the forecast in git, run the target for real, and score it. In 95 runs, a pre-registered forecast for an unrun mix of Haiku and Sonnet workers passed against five new runs, and a forecast that a 100-agent network would contain the rule held in one run, a weak test since training saw no adoption. Haiku adopted a ``do not write tests'' rule from a shared \code{AGENTS.md} in 45 of 45 exposures, but no rule in an imported module's header was adopted in 219 exposures across four settings, even under an obey-the-owner prompt; and in exploratory runs whether an Opus orchestrator obeyed it depended on reasoning effort and on the marker word.
+Coding agents increasingly work in teams that read and write shared files, so a bad instruction written into that shared state can spread from agent to agent. Prior work shows such spread happens. We release Agent Team Contagion, an open pipeline that tells an operator in advance whether \emph{their} setup would contain or amplify a bad instruction, in three steps. \emph{Measure:} run a few cheap configurations of a real team of Claude agents, either a boss with workers sharing one folder or a network of agents that each see only the code they import, plant one bad rule carrying a marker word, and log every read, write and message. \emph{Forecast:} fit per-exposure adoption, recovery and cleaning probabilities with whole-run bootstrap uncertainty, and simulate setups that were never run. \emph{Test:} freeze the forecast in git, run the target for real, and score it. In 95 runs, a pre-registered forecast for an unrun mix of Haiku and Sonnet workers passed against five new runs, and a forecast that a 100-agent network would contain the rule held in one run, a weak test since training saw no adoption. Haiku adopted a ``do not write tests'' rule from a shared \code{AGENTS.md} in 45 of 45 exposures, but no rule in an imported module's header was adopted in 219 exposures across four settings, even under an obey-the-owner prompt; and in exploratory runs whether an Opus orchestrator obeyed it depended on reasoning effort and on the marker word.
 \end{abstract}
 
 % ---------------------------------------------------------------
@@ -48,7 +48,7 @@ We use the toolkit of infectious-disease epidemiology literally. The planted rul
 \textbf{Team structure matters.} From Spark to Fire \cite{spark} found errors seeded at the hub of a star-shaped team reached every agent, but only 10--16\% when seeded at a leaf. Le et al.\ \cite{crosslayer} predict in theory that an orchestrator hub has the highest reproduction number, and the same model behaves differently as orchestrator and as worker \cite{fukui}. Peers can also talk agents into payloads they would otherwise refuse \cite{lupinacci}.
 \textbf{Epidemic models of agent collectives} exist as accounts and benchmarks \cite{collective} and as theory \cite{crosslayer}; Spark to Fire fits epidemic parameters to its runs but states its spread indicator is not a calibrated predictor.
 
-\textbf{The gap.} No prior work we found (i) measures adoption \emph{per exposure} by channel, source and seat inside a team with a boss and a rules file, (ii) uses those measurements to forecast team setups that were not run and scores the forecast against new runs, or (iii) packages this so an operator can point it at their own setup. Table~\ref{tab:related} (Appendix) compares the closest papers. Someone would use our pipeline over these when they want a tested prediction for a specific team design rather than evidence that spread can happen.
+\textbf{Our approach.} We measure adoption \emph{per exposure} by channel, source and seat inside a team with a boss and a rules file, use those measurements to forecast team setups that were not run, score each forecast against new runs, and package this so an operator can point it at their own setup. Table~\ref{tab:related} (Appendix) compares the closest papers. Someone would use our pipeline over these when they want a tested prediction for a specific team design rather than evidence that spread can happen.
 
 % ---------------------------------------------------------------
 \section{Methods}
@@ -365,20 +365,20 @@ $p_{\text{background}}$ & A healthy agent adopts with no listed exposure while t
 
 \begin{table}[h]
 \centering\small
-\begin{tabularx}{\textwidth}{@{}l X X >{\raggedright\arraybackslash}p{2.6cm}@{}}
+\begin{tabularx}{\textwidth}{@{}l X X@{}}
 \toprule
-Work & Setting & Already showed & Forecasts unseen setups, scored? \\
+Work & Setting & What it showed \\
 \midrule
-Spark to Fire \cite{spark} & Star-shaped CrewAI / LangGraph teams & Hub-seeded errors reach all agents; epidemic parameters fitted to logs & No (not a calibrated predictor) \\
-Share-Borne \cite{share} & Agents linked by shared files and memory & Per-model conversion per exposure & No \\
-Mind Viruses \cite{mind} & Six peer coding agents & Spread through a shared sandbox; written warnings protect & No \\
-Fukui \cite{fukui} & Five Sonnet 4.5 agents, pre-registered & Same model differs as orchestrator vs worker & No \\
-Le et al.\ \cite{crosslayer} & Theory and simulation & Orchestrator hub has the highest $R_0$ & Simulated only \\
+Spark to Fire \cite{spark} & Star-shaped CrewAI / LangGraph teams & Hub-seeded errors reach all agents; epidemic parameters fitted to logs \\
+Share-Borne \cite{share} & Agents linked by shared files and memory & Per-model conversion per exposure \\
+Mind Viruses \cite{mind} & Six peer coding agents & Spread through a shared sandbox; written warnings protect \\
+Fukui \cite{fukui} & Five Sonnet 4.5 agents, pre-registered & Same model differs as orchestrator vs worker \\
+Le et al.\ \cite{crosslayer} & Theory and simulation & Orchestrator hub has the highest $R_0$ (simulated) \\
 \midrule
-\textbf{This work} & Boss + workers or import graph; shared files, messages; any Claude mix & Per-exposure probabilities by channel, source, seat & \textbf{Yes} \\
+\textbf{This work} & Boss + workers or import graph; shared files, messages; any Claude mix & Per-exposure probabilities by channel, source, seat; forecasts of unrun setups, scored on new runs \\
 \bottomrule
 \end{tabularx}
-\caption{Closest prior work and the gap this pipeline fills.}
+\caption{Closest prior work and what this pipeline adds.}
 \label{tab:related}
 \end{table}
 
