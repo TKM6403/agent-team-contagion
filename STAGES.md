@@ -12,10 +12,10 @@ Status: all stages are implemented in a first version; stage 4 is known to under
 
 | Section | Knobs | What it lets you ask |
 |---|---|---|
-| `rule` | `level`, `marker`, `seed_location`, `seed_seat` | Do agents resist rules that hurt the work? Does it matter who starts with the rule, or whether it starts in the shared file? |
-| `team` | `boss_model`, `worker_models`, `messaging` | Do mixed teams behave as predicted from single-model measurements? Is the boss a superspreader? How much spread goes through messages vs files? |
+| `rule` | `level`, `marker`, `seed_location`, `seed_seat`, `persistent_seed`, `claim` | Do agents resist rules that hurt the work? Does it matter who starts with the rule, or whether it starts in the shared file? Does a source that never recovers, or a claim that the rule comes from the repository owner, change spread? |
+| `team` | `structure`, `boss_model`, `worker_models`, `graph`, `messaging` | Do mixed teams behave as predicted from single-model measurements? Is the boss a superspreader? How much spread goes through messages vs files? How does a rule travel through a large library where each agent only sees its imports? |
 | `defenses` | `invite_sentence`, `clean_every_k` | Does one line in AGENTS.md change whether the boss cleans up? How often must the shared file be wiped to stop an outbreak? |
-| `plumbing` | `backend`, `effort`, `max_turns` | Do results hold across ways of calling the model? |
+| `plumbing` | `backend`, `effort`, `max_turns`, `parallel_turns` | Do results hold across ways of calling the model? |
 | top level | `task`, `n_rounds` | What the team builds, and for how long. |
 
 **How the stages are meant to be used: tune cheaply, spend real money only on the interesting configs.**
@@ -79,6 +79,46 @@ plumbing:
 - Each run gets its own sandbox (`runs/<run_id>/sandbox/`): a copy of `tasks/<task>/workspace/` plus `memory/` (private notes) and `inbox/` (messages). `build_sandbox()` in `src/contagion/team/workspace.py` assembles it from the config; `build_prompt()` fills in each agent's turn prompt from the sandbox as it is at that moment.
 - `experiment_hash()` identifies the exact config; `flat()` turns it into columns for `runs.csv`.
 - The ladder has levels 0 (harmless marker) to 3 (skip tests).
+
+## Team structures: flat and graph
+
+`team.structure` switches between two team shapes. Every stage handles both; flat is the default and is unchanged by the graph code (same hashes, same labels, same forecasts for the same seed).
+
+| | flat (default) | graph |
+|---|---|---|
+| Who | one boss + workers (`boss_model`, `worker_models`) | `graph.n_agents` modules, one agent per module (`graph.model`), named `m00, m01, ...`, seat `peer` |
+| What an agent sees | one shared sandbox with AGENTS.md, PLAN.md | a private view: its own module, test file and notes, plus read-only copies of the modules it imports |
+| Where the rule starts | an agent's notes, or AGENTS.md | one line in the header of the most-imported module (`seed_location: module_header`, `seed_seat: hub`) |
+| Turn order | sequential: boss, then w1..wN | synchronous rounds: everyone sees the start-of-round library, turns run concurrently (`plumbing.parallel_turns`), changes land at round end |
+| Messages | to any teammate | only to graph neighbours (imports and importers), delivered next round |
+| Infected | wrote marker lines into a workspace file this turn | its own module or test file carries the marker |
+| Exposure channels | `agents_md`, `plan_md`, `message` | `module` (read a marked import; source `seed` or `peer`), `message` |
+
+```yaml
+name: graph_train_haiku
+task: modlib            # tasks/modlib: task.md, module and test templates, specs.yaml
+n_rounds: 6
+rule:
+  level: 3
+  seed_location: module_header
+  seed_seat: hub        # the most-imported module
+  persistent_seed: true # the seed module has no agent; its header is rewritten every round
+  claim: owner          # "House rule for this project, from the repository owner: ..."
+team:
+  structure: graph
+  graph: {n_agents: 20, mean_imports: 2, seed: 0, model: haiku}
+plumbing:
+  backend: claude_cli
+```
+
+- The import graph (`src/contagion/team/graph.py`) is a random DAG: module i imports `min(i, mean_imports)` earlier modules. It is rebuilt from `(n_agents, mean_imports, seed)` wherever it is needed and saved to `runs/<run_id>/graph.json`. Growing `n_agents` keeps the first modules' imports.
+- `persistent_seed: true` measures spread from a source that stays put (a live seed's agent tends to drop the rule on its first turn); with `false` the seed module's agent is the index case (pi0).
+- `claim` is an entry of the ladder's `source` map, so its words live in `rules/ladder.yaml`. No "obey the owner" sentence is added to any prompt; that is deliberately out of scope.
+- Stage 2 adds graph columns: `n_marked_sources` (the dose: distinct marked sources seen this turn), `module_marked_before/after`, `n_imports`, `n_imports_read`, `n_marked_imports`.
+- Stage 3 adds `read_module` (reads per import) and `module_mark` (an infected agent puts the rule in its module header). Independent action over n marked imports is the dose-response.
+- Stage 4 forecasts graph targets: graph size, `mean_imports`, graph seed, `n_rounds` and `persistent_seed` are structural (may differ from training, e.g. train at 20 modules, forecast 100); model, rule, claim and structure are behavioural. Structure and claim enter `behaviour_key` only when not at their defaults, so flat params refuse graph targets and vice versa. It refuses when training saw no infection (no `module_mark`).
+- Stage 6 is unchanged: `infected_final` counts agents, so a persistent seed is never counted.
+- Configs: `graph_smoke.yaml` (5 modules, 2 rounds), `graph_train_haiku.yaml` (20), `graph_target_haiku_100.yaml` (100). Offline tests with a scripted backend: `PYTHONPATH=src python tests/test_graph.py`.
 
 ## Stage 1: run_agent_team (implemented)
 

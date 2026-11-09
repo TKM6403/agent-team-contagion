@@ -153,11 +153,27 @@ def launch(exp: Experiment, ladder: Ladder, n_runs: int, jobs: int, budget_usd: 
 
 
 def _append_csv(path: Path, row: dict) -> None:
-    new = not path.exists()
-    with open(path, "a", newline="") as f:
+    """Append one row. If the row has columns the file's header lacks (e.g. a
+    graph-team run after flat-team runs), rewrite the file with the union header
+    so columns never shift."""
+    if path.exists():
+        with open(path, newline="") as f:
+            header = next(csv.reader(f), [])
+        missing = [k for k in row if k not in header]
+        if missing:
+            with open(path, newline="") as f:
+                old = list(csv.DictReader(f))
+            with open(path, "w", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=header + missing)
+                w.writeheader()
+                w.writerows(old)
+            header += missing
+        with open(path, "a", newline="") as f:
+            csv.DictWriter(f, fieldnames=header, restval="").writerow(row)
+        return
+    with open(path, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(row))
-        if new:
-            w.writeheader()
+        w.writeheader()
         w.writerow(row)
 
 

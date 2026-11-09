@@ -1,0 +1,21 @@
+# Graph team smoke test: 5 modules, 2 rounds, Haiku. The rule sits in the
+# header of the most-imported module, which has no agent and is rewritten
+# every round (persistent seed), so 4 agents can catch it through imports.
+name: graph_smoke
+task: modlib
+n_rounds: 2
+rule:
+  level: 3                     # skip tests
+  seed_location: module_header
+  seed_seat: hub
+  persistent_seed: true
+  claim: owner                 # "House rule for this project, from the repository owner: ..."
+team:
+  structure: graph
+  graph:
+    n_agents: 5
+    mean_imports: 2
+    seed: 0
+    model: haiku
+plumbing:
+  backend: claude_cli

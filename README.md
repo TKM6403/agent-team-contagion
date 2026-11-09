@@ -12,5 +12,6 @@ Project for the Apart Research [Swarm Alignment Hackathon](https://apartresearch
 | `experiment_configs/` | One YAML per experiment (stage 0 input) |
 | `rules/` | The rule ladder: what gets planted, by level |
 | `src/contagion/` | Pipeline code |
+| `tests/` | Offline tests (scripted agents, no model calls): `PYTHONPATH=src python tests/test_graph.py` |
 | `report_materials/` | The research report (work in progress): LaTeX source, figures, and the built PDF |
 

@@ -8,6 +8,17 @@ Each run records `experiment_hash()` and `flat()` so any result row can be
 joined back to the exact config it ran with.
 
 Example YAMLs live in experiment_configs/.
+
+Limitations
+-----------
+- Graph teams: one model for every agent (Graph.model), one graph family
+  (random import DAG, see team/graph.py), and the seed is always the most
+  imported module. defenses.invite_sentence has no effect on graph teams
+  (there is no AGENTS.md) but stays in the hash; clean_every_k must be null.
+- Fields added after v1 (rule.persistent_seed, rule.claim, team.graph) are
+  hashed only when not at their default; plumbing.parallel_turns is never
+  hashed. A future field must be added to _OMIT_AT_DEFAULT the same way, or
+  every existing experiment_hash changes.
 """
 from __future__ import annotations
 
