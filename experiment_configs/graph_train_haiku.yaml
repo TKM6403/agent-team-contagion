@@ -22,3 +22,4 @@ team:
   messaging: true
 plumbing:
   backend: claude_cli
+  parallel_turns: 4
