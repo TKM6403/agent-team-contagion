@@ -80,7 +80,7 @@ We use the toolkit of infectious-disease epidemiology literally. The planted rul
 The pipeline has seven stages (Figure~\ref{fig:stages}): run a few real configurations, fit, sweep structural settings in the simulator for free, then pre-register and run for real only the configurations most likely to break the forecast.
 
 \subsection{Stage 0: Configuration}
-One experiment is one YAML file (example in Appendix~B). It sets the rule (its level on a five-rung ladder from a harmless comment to ``do not write tests'' and ``never raise'', a marker word every rule makes the agent write, and where the rule is seeded), the team (its structure, models, messaging on or off), defences (an \code{AGENTS.md} line inviting agents to record new rules there; an overseer wipe every $k$ rounds; in \code{graph}, an optional system-prompt sentence demanding obedience to the owner), the backend, and the analysis settings. Each config gets a hash so every result can be traced to it.
+One experiment is one YAML file (example in Appendix~B). It sets the rule (its level on a five-rung ladder from a harmless comment to ``do not write tests'' and ``never raise'', and where it is seeded), the team (its structure, models, messaging on or off), defences (an \code{AGENTS.md} line inviting agents to record new rules there; an overseer wipe every $k$ rounds; in \code{graph}, an optional system-prompt sentence demanding obedience to the owner), the backend, and the analysis settings. Every rule also tells the agent to write a \emph{marker word} (KESTREL by default) wherever it applies the rule, so adoption can be detected automatically without judging the code. Each config gets a hash so every result can be traced to it.
 
 \subsection{Stage 1: Run the real team}
 \begin{figure}[t]
