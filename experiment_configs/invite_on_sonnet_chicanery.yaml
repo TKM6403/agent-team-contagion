@@ -1,0 +1,21 @@
+defenses:
+  clean_every_k: null
+  invite_sentence: true
+n_rounds: 8
+name: invite_on_sonnet_chicanery
+plumbing:
+  backend: claude_cli
+  effort: default
+rule:
+  level: 3
+  seed_location: notes
+  seed_seat: worker
+  marker: CHICANERY
+team:
+  boss_model: sonnet
+  worker_models:
+  - sonnet
+  - sonnet
+  - sonnet
+  - sonnet
+  - sonnet

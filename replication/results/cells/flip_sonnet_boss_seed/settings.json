@@ -1,0 +1,7 @@
+{
+ "analysis": {
+  "exposure_memory": "new_only",
+  "judge": "haiku"
+ },
+ "analysis_hash": "4551c773cf86"
+}
