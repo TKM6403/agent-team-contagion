@@ -1,6 +1,6 @@
 # The original 100-agent harness: code, methods, figures, data
 
-Copied verbatim from `TKM6403/agent-outbreaks`, branch `sprint-weekend`, on 8 November 2026, so the pipeline can grow a `peer_graph` structure that reproduces these runs. Nothing here is wired into `src/contagion/`; it is reference material. The design for folding it in is `../PIPELINE_EXTENSION_NOTE.pdf`.
+Copied verbatim from the authors' earlier experiment harness on 8 November 2026, which predates this pipeline. Nothing here is wired into `src/contagion/`; it is reference material. The pipeline's own `graph` structure (`STAGES.md`) is a reimplementation of this setting, not a byte-for-byte reproduction.
 
 ## Layout
 

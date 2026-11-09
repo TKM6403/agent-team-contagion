@@ -118,7 +118,7 @@ plumbing:
 - Stage 3 adds `read_module` (reads per import) and `module_mark` (an infected agent puts the rule in its module header). Independent action over n marked imports is the dose-response.
 - Stage 4 forecasts graph targets: graph size, `mean_imports`, graph seed, `n_rounds` and `persistent_seed` are structural (may differ from training, e.g. train at 20 modules, forecast 100); model, rule, claim, obedience clause and structure are behavioural. They enter `behaviour_key` only when not at their defaults, so flat params refuse graph targets and vice versa. If training saw no infection, parameters used only after an infection are drawn from their prior, with a warning.
 - Stage 6 is unchanged: `infected_final` counts agents, so a persistent seed is never counted.
-- Configs: `graph_smoke.yaml` (5 modules, 2 rounds), `graph_train_haiku.yaml` (20), `graph_target_haiku_100.yaml` (100). Offline tests with a scripted backend: `PYTHONPATH=src python tests/test_graph.py`.
+- Configs: `graph_smoke.yaml` (5 modules, 2 rounds), `graph_train_haiku.yaml` (20; `_l0`, `_obey` and `_obey_l4` variants), `graph_target_haiku_100.yaml` (100; `_obey` variant). Offline tests with a scripted backend: `PYTHONPATH=src python tests/test_graph.py`.
 
 ## Stage 1: run_agent_team (implemented)
 
