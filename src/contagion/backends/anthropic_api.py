@@ -72,7 +72,7 @@ class AnthropicAPI:
                                     "is_error": is_error})
                 messages.append({"role": "user", "content": results})
             else:
-                out.error = f"hit max_turns={plumbing.max_turns}"
+                out.warning = f"hit max_turns={plumbing.max_turns}"  # turn ends early; not a failure
         except anthropic.APIError as e:
             out.error = f"{type(e).__name__}: {e}"
         pin, pout = PRICES[model]
@@ -80,6 +80,11 @@ class AnthropicAPI:
         out.raw_log = json.dumps(transcript)
         log_path.write_text(out.raw_log)
         return out
+
+    def complete(self, system: str, prompt: str, model: str) -> str:
+        resp = self.client.messages.create(model=MODEL_IDS[model], max_tokens=1024, system=system,
+                                           messages=[{"role": "user", "content": prompt}])
+        return "".join(b.text for b in resp.content if b.type == "text")
 
     def _run_tool(self, name: str, inp: dict, sandbox: Path, out: TurnResult) -> tuple[str, bool]:
         rel = inp.get("file_path", "")

@@ -111,6 +111,15 @@ python -m contagion.run_agent_team experiment_configs/invite_on_sonnet.yaml --n-
 
 ## Pipeline commands
 
+All stages from one YAML (pauses after pre-registering so you can commit the prediction before held-out runs exist):
+
+```bash
+python -m contagion.pipeline experiment_configs/invite_on_sonnet.yaml --train-runs 8 --heldout-runs 8 --jobs 4
+python -m contagion.pipeline train.yaml --target target.yaml --train-runs 8 --heldout-runs 8   # forecast a different setup
+```
+
+Or stage by stage:
+
 ```bash
 C=experiment_configs/invite_on_sonnet.yaml
 python -m contagion.run_agent_team $C --n-runs 8 --jobs 4 --budget-usd 10      # 1
@@ -161,7 +170,7 @@ Exposure type = (channel in {agents_md, plan_md, message}, source in {boss, work
 
 Interface: `call_agent(prompt, workspace, model, tools) -> transcript (+ usage, cost)`.
 
-- `claude_cli`: subprocess `claude -p`. Bills whatever login is active; cost is a list-price estimate.
+- `claude_cli`: subprocess `claude -p`. Bills whatever login is active (on a subscription, check the plan allows automated use); cost is a list-price estimate. The runner's own Claude Code setup (plugins, skills, MCP servers, CLAUDE.md, memory) is kept out of agent sessions and checked every turn; what can still leak in (organisation-managed settings, environment variables, version changes) is listed in `backends/claude_cli.py`.
 - `agent_sdk`: Claude Agent SDK, the Claude Code agent loop, API-key billed.
 - `anthropic_api`: Messages API with our own small tool loop (`read_file`, `write_file`, `list_files`), API-key billed. Messages are files (`inbox/<name>.md`), so no separate messaging tool is needed.
 

@@ -40,8 +40,10 @@ class TurnResult:
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
-    error: Optional[str] = None        # set when the turn failed (usage limit, timeout, API error)
+    error: Optional[str] = None        # set when the turn failed (usage limit, timeout, API error); stops the run
+    warning: Optional[str] = None      # noted but not fatal (e.g. hit max_turns; something leaked into isolation)
     raw_log: Optional[str] = None      # backend-specific transcript, saved for audit
+    backend_version: Optional[str] = None  # e.g. the Claude Code version, when the backend reports one
 
 
 class Backend(Protocol):
@@ -50,6 +52,10 @@ class Backend(Protocol):
     def call_agent(self, system: str, prompt: str, sandbox: Path, model: str, plumbing: Plumbing,
                    log_path: Path) -> TurnResult:
         """Run one agent turn with `sandbox` as its working folder."""
+        ...
+
+    def complete(self, system: str, prompt: str, model: str) -> str:
+        """One plain model call with no tools: used by the stage-2 judge."""
         ...
 
 

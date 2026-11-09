@@ -143,13 +143,15 @@ class Plumbing(_Strict):
                  claude_cli     subprocess `claude -p`, as in the original
                                 harness (bills whatever login is active)
       effort     Reasoning effort per call; "default" passes no setting.
-      max_turns  Cap on tool calls within one agent turn, so a stuck agent
-                 can't loop forever.
+      max_turns  Cap on model calls within one agent turn, so a stuck agent
+                 can't loop forever. Agents on the tinyutils task use about
+                 8 to 20 per turn. Hitting the cap ends that turn early and
+                 is recorded as a warning, not a failure.
     """
 
     backend: Literal["anthropic_api", "agent_sdk", "claude_cli"] = "anthropic_api"
     effort: Literal["low", "medium", "high", "default"] = "default"
-    max_turns: int = Field(default=20, ge=1)
+    max_turns: int = Field(default=30, ge=1)
 
 
 class Analysis(_Strict):
@@ -170,7 +172,9 @@ class Analysis(_Strict):
                        simulator hands out tries the same way.
       judge            none, or a model (haiku | sonnet | opus) that labels
                        marker-bearing notes and messages as adopting or
-                       refusing the rule. Cached, so re-running is free.
+                       refusing the rule. Runs through plumbing.backend (a
+                       claude_cli experiment judges with `claude -p`).
+                       Cached, so re-running is free.
     """
 
     exposure_memory: Literal["new_only", "all"] = "new_only"

@@ -21,7 +21,7 @@ runs/batches.jsonl.
 
 Runs execute in parallel (`--jobs`); turns inside a run never do.
 
-Budget: before each run starts, its cost is estimated (EST_TURN_USD x turns)
+Budget: before each run starts, its cost is estimated (TOKENS_PER_TURN x prices x turns)
 and the run only starts if spent + reserved + estimate fits in --budget-usd.
 Runs that would not fit are skipped and reported, never started and cut off.
 """
@@ -45,12 +45,18 @@ from contagion.team.run import run_one
 from contagion.team.workspace import ROOT, build_prompt, build_sandbox, index_agent, team_of
 
 RUNS = ROOT / "runs"
-# Rough USD per agent turn on the tinyutils task, for budgeting only.
-EST_TURN_USD = {"haiku": 0.002, "sonnet": 0.02, "opus": 0.04}
+# Tokens per agent turn on the tinyutils task, measured on real claude_cli runs
+# (about 19 model calls per turn, each resending the growing context: ~50k input
+# tokens, ~70% of them cache reads billed at ~0.1x). "input" is the full-price
+# equivalent, rounded up so the budget gate errs on the safe side.
+TOKENS_PER_TURN = {"input": 20_000, "output": 4_000}
 
 
 def estimate_run_usd(exp: Experiment) -> float:
-    return exp.n_rounds * sum(EST_TURN_USD[a.model] for a in team_of(exp))
+    from contagion.backends.anthropic_api import PRICES
+    per_turn = {m: (TOKENS_PER_TURN["input"] * pin + TOKENS_PER_TURN["output"] * pout) / 1e6
+                for m, (pin, pout) in PRICES.items()}
+    return exp.n_rounds * sum(per_turn[a.model] for a in team_of(exp))
 
 
 def git_sha() -> str:

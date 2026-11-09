@@ -8,3 +8,4 @@ runs/
 tables*/
 params/
 forecast*.csv
+pipeline_out/
