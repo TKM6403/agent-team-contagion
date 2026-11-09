@@ -40,7 +40,14 @@ max_turns) must match a training config: the simulator refuses otherwise,
 because the fitted probabilities say nothing about a different rule or setup.
 
 Coverage: if the target needs pi0 or file_clean for a group with no training
-data, the simulator refuses. Other missing groups are warned about: gamma,
+data, the simulator refuses. Graph targets also refuse without read_module or
+p_exposure module:seed (they decide whether anyone is infected at all). Graph
+parameters used only after an infection (module_mark, gamma, msg_send,
+p_exposure module:peer / message:peer) that training never gave a chance,
+because nobody was infected, are drawn per simulation from the Beta(0.5, 0.5)
+prior the fitter smooths with; a WARNING names them, forecast.csv records each
+draw (prior:<param>[<group>] columns) and a pre-registration lists them under
+prior_fallback. Other missing groups are warned about: gamma,
 file_mark and msg_send fall back to the same model pooled over seats; a
 missing p_exposure, plan_mark or plan_clean group is treated as 0.
 
@@ -100,6 +107,18 @@ Limitations
 - Every simulated rule-carrying message counts as a new exposure, even
   under exposure_memory new_only, while stage 2 does not count a repeat of
   identical message text as new (flat and graph teams alike).
+- Graph: a module gets a new rule-text version every time it goes from
+  clean to marked, whereas stage 2 keys on marker_hash, so re-writing the
+  same rule text after recovery counts as a new exposure only here.
+- Graph: a live seed's agent that doesn't write its module on turn 1 is
+  labelled susceptible by stage 2 while its header stays marked; the
+  simulator clears the hub instead.
+- Graph: there is no "infected agent removes the rule from its module but
+  keeps it in its test file" transition, so modules_marked_final is slightly
+  over-predicted; infected_final is unaffected.
+- Graph: prior-drawn parameters (see Coverage) carry no information; a
+  forecast that depends on them says only "if anyone is infected, anything
+  in the prior range may follow".
 - Graph: a module is marked only while its agent is infected; an infected
   agent whose rule sits only in its test file (invisible to importers) is
   covered by module_mark < 1. Test files are never read by neighbours.
@@ -128,6 +147,12 @@ class Params:
     def __init__(self, draws: pd.DataFrame, draw: int):
         d = draws[draws.draw == draw]
         self.v = {(r.param, r.group): r.value for r in d.itertuples()}
+
+    def with_values(self, extra: dict) -> "Params":
+        """A copy with some (param, group) values set, e.g. prior draws."""
+        q = object.__new__(Params)
+        q.v = self.v | extra
+        return q
 
     def get(self, param: str, group: str, fallback: str | None = None) -> float:
         if (param, group) in self.v:
@@ -182,15 +207,37 @@ def graph_needed_groups(exp) -> list[tuple[str, str, str | None]]:
     return need
 
 
-def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
-    """(missing required groups -> refuse, missing optional groups -> warn and use a fallback)."""
+def _after_infection(param: str, group: str) -> bool:
+    """Graph parameters that only act once some agent is infected."""
+    return param in ("module_mark", "gamma", "msg_send") or \
+        (param == "p_exposure" and group.endswith(("|module:peer", "|message:peer")))
+
+
+def _missing(exp, draws: pd.DataFrame) -> list[tuple[str, str]]:
     have = set(zip(draws.param, draws.group))
+    return [(param, g) for param, g, fb in needed_groups(exp)
+            if (param, g) not in have and not (fb and (param, fb) in have)]
+
+
+def prior_groups(exp, draws: pd.DataFrame) -> list[tuple[str, str]]:
+    """Graph only: missing groups used only after an infection. Training with no
+    infection gives them no opportunities, so they are drawn per simulation from
+    the fitter's Beta(0.5, 0.5) prior instead of refusing the forecast."""
+    if not is_graph(exp):
+        return []
+    return [(param, g) for param, g in _missing(exp, draws) if _after_infection(param, g)]
+
+
+def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """(missing required groups -> refuse, missing optional groups -> warn and use a fallback).
+    Groups in prior_groups are neither: they are drawn from the prior."""
     refuse, warn = [], []
-    for param, g, fb in needed_groups(exp):
-        if (param, g) in have or (fb and (param, fb) in have):
+    prior = set(prior_groups(exp, draws))
+    for param, g in _missing(exp, draws):
+        if (param, g) in prior:
             continue
         required = param == "pi0" or (param == "file_clean" and "|boss|" in g) \
-            or param in ("read_module", "module_mark") or g.endswith("|module:seed")
+            or param == "read_module" or g.endswith("|module:seed")
         (refuse if required else warn).append(f"{param}[{g}]")
     return refuse, warn
 
@@ -395,15 +442,26 @@ def run_forecast(exp, params_dir: Path, n_sims: int, seed: int = 0) -> pd.DataFr
     if warn:
         print("WARNING: no training data for " + ", ".join(warn)
               + " (treated as 0 unless a same-model fallback exists)")
+    prior = prior_groups(exp, draws)
+    if prior:
+        print("WARNING: no training opportunities for " + ", ".join(f"{p}[{g}]" for p, g in prior)
+              + " (only used after an infection, and training had none): each simulation draws them "
+              "from the Beta(0.5, 0.5) prior; recorded in forecast columns prior:<param>[<group>]")
     memory = ((meta.get("label_settings") or {}).get("analysis") or {}).get("exposure_memory", "new_only")
     rng = np.random.default_rng(seed)
+    prior_rng = np.random.default_rng([seed, 1])  # separate stream: the main one is unchanged
     ids = draws.draw.unique()
     cache: dict[int, Params] = {}
     rows = []
     for s in range(n_sims):
         d = int(rng.choice(ids))
         P = cache.setdefault(d, Params(draws, d))
-        rows.append({"sim": s, "draw": d, **simulate_once(exp, P, rng, memory)})
+        extra = {}
+        if prior:
+            vals = {k: float(prior_rng.beta(0.5, 0.5)) for k in prior}
+            P = P.with_values(vals)
+            extra = {f"prior:{p}[{g}]": round(v, 6) for (p, g), v in vals.items()}
+        rows.append({"sim": s, "draw": d, **simulate_once(exp, P, rng, memory), **extra})
     return pd.DataFrame(rows)
 
 
@@ -431,6 +489,11 @@ def preregister(exp, fc: pd.DataFrame, fc_path: Path, params_dir: Path, name: st
         "decision_rule": f"pass if at least 80% of held-out runs have infected_final in [{lo}, {hi}] "
                          f"and the mean log score beats the null model",
     }
+    prior_cols = [c[len("prior:"):] for c in fc.columns if c.startswith("prior:")]
+    if prior_cols:
+        pred["prior_fallback"] = {"parameters": prior_cols,
+                                  "how": "no training opportunities (no infection in training); drawn per "
+                                         "simulation from the fitter's Beta(0.5, 0.5) prior"}
     out = ROOT / "predictions" / f"{datetime.now(timezone.utc):%Y-%m-%d}_{name}.yaml"
     out.parent.mkdir(exist_ok=True)
     out.write_text(yaml.safe_dump(pred, sort_keys=False))

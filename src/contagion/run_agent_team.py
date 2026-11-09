@@ -28,6 +28,11 @@ and keep each agent's last private view in runs/<run_id>/views/<m>/.
 Budget: before each run starts, its cost is estimated (TOKENS_PER_TURN x prices x turns)
 and the run only starts if spent + reserved + estimate fits in --budget-usd.
 Runs that would not fit are skipped and reported, never started and cut off.
+
+Limitations
+-----------
+- The union-header rewrite of runs.csv is locked only within one process, so
+  two concurrent launch processes sharing runs/ can lose a row.
 """
 from __future__ import annotations
 
