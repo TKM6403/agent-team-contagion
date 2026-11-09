@@ -34,4 +34,8 @@ This runs the training config, fits, forecasts the target, pauses so you can com
 | `tests/` | Offline tests (scripted agents, no model calls): `PYTHONPATH=src python tests/test_graph.py` |
 | `report_materials/` | The research report: LaTeX source, figures, and the built PDF |
 
+## Preexisting work
+
+Before 6 November 2026 the authors only ideated on what the design of the harness would look like. All code, runs and results here, including `replication/original_harness/`, were produced from 6 to 8 November 2026.
+
 
