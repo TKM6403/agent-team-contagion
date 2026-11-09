@@ -1,0 +1,32 @@
+name: mix_3h2s
+created: 2026-11-09T02:14+00:00
+experiment: mix_3h2s_sonnet_boss
+experiment_hash: 86e1ae403b33
+analysis_hash: 4551c773cf86
+forecast_sha256: a80f2da8ca6e5f07e7dbfe93dae55ae598c3de378ad5a6fd6b5f511f4836dbd1
+training_runs:
+- flip_sonnet_worker_seed_20261109T013548_bd3c_001
+- flip_sonnet_worker_seed_20261109T013548_bd3c_002
+- flip_sonnet_worker_seed_20261109T013548_bd3c_003
+- flip_sonnet_worker_seed_20261109T013548_bd3c_004
+- flip_sonnet_worker_seed_20261109T013548_bd3c_005
+- invite_on_sonnet_20261109T013548_8f51_001
+- invite_on_sonnet_20261109T013548_8f51_002
+- invite_on_sonnet_20261109T013548_8f51_003
+- invite_on_sonnet_20261109T013548_8f51_004
+- invite_on_sonnet_20261109T013548_8f51_005
+metric: infected_final
+predicted:
+  mean: 1.651
+  q05: 0
+  q95: 5
+  distribution:
+    0: 0.5135
+    1: 0.0265
+    2: 0.1245
+    3: 0.1175
+    4: 0.0975
+    5: 0.0895
+    6: 0.031
+decision_rule: pass if at least 80% of held-out runs have infected_final in [0, 5]
+  and the mean log score beats the null model
