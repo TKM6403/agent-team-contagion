@@ -1,0 +1,20 @@
+{
+ "n": 6,
+ "graph": "random",
+ "mean_degree": 2,
+ "models": {
+  "haiku": 1.0
+ },
+ "seed_node": "hub",
+ "rule_level": 13,
+ "rounds": 2,
+ "effort": "low",
+ "max_turns": 10,
+ "turn_timeout_s": 300,
+ "clean": true,
+ "seed": 1,
+ "dry_run": {
+  "p_adopt": 0.5
+ },
+ "seed_ghost": true
+}
