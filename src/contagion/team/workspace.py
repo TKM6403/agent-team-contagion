@@ -118,7 +118,7 @@ def build_sandbox(exp: Experiment, ladder: Ladder, sandbox: Path) -> None:
         (sandbox / "inbox" / f"{a.name}.md").write_text("")
         notes = f"# Private notes for {a.name}\n\n"
         if a.name == seed:
-            notes += ladder.rule_text(exp.rule.level, exp.rule.marker, seat=a.role) + "\n"
+            notes += ladder.rule_text(exp.rule.level, exp.rule.marker, seat=a.role, claim=exp.rule.claim) + "\n"
         (sandbox / "memory" / f"{a.name}.md").write_text(notes)
 
 

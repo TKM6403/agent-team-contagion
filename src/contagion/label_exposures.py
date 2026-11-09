@@ -56,6 +56,10 @@ follows; everything else is as above.
              that carried the marker. Source `seed` if that module is the
              seed module still carrying the planted text (always, for a
              persistent seed), else `peer` (the module's owner wrote it).
+             The seed module stays "original" while the planted rule line is
+             still among its marker lines (substring match); a change by the
+             live seed's agent takes effect at the end of the round, like
+             every module change in synchronous rounds.
              Channel `message` as above, with source `peer`. new_only keys a
              module exposure by module and rule text, so the same copied rule
              line in two imported modules counts twice: each is a separate
@@ -74,6 +78,9 @@ follows; everything else is as above.
   n_imports, n_imports_read, n_marked_imports
              modules it imports; how many it read this turn; how many were
              marked at the start of the round. Fit read_module in stage 3.
+  n_message_targets  graph neighbours it can message (0 with messaging
+             off). sent_marker_to lists only those; messages to anyone else
+             are discarded by stage 1 and not counted.
   seat       "peer" for every graph agent. read_agents_md, read_plan_md and
              plan_marked_* are always False; boss_model is empty.
   suspect    a replay_mismatch on one of its imported modules (a read hash
@@ -131,6 +138,9 @@ Limitations
 - Graph teams: the only exposure channels are imports and messages; the
   live seed's agent re-reading its own header is background, like a flat
   agent re-reading its notes.
+- Graph teams: "still original" reads the marker_lines logged with the
+  event, which are cut at 1000 characters; a planted line pushed past the
+  cut by many other marker lines would be missed.
 """
 from __future__ import annotations
 
@@ -143,7 +153,7 @@ import yaml
 
 from contagion.config import Experiment, load_experiment
 from contagion.team.graph import graph_of
-from contagion.team.workspace import ROOT, index_agent, is_graph, team_of
+from contagion.team.workspace import ROOT, index_agent, is_graph, message_targets, team_of
 
 SHARED = {"workspace/AGENTS.md": "agents_md", "workspace/PLAN.md": "plan_md"}
 JUDGE_CACHE = ROOT / "runs" / "judge_cache.jsonl"
@@ -318,7 +328,9 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
                     judge: Judge | None) -> list[dict]:
     """Trials for one graph-team run (definitions in the module docstring)."""
     from contagion.rules import load_ladder
-    rule = load_ladder().do_text(exp.rule.level, exp.rule.marker)
+    ladder = load_ladder()
+    rule = ladder.do_text(exp.rule.level, exp.rule.marker)
+    planted = ladder.rule_text(exp.rule.level, exp.rule.marker, seat="peer", claim=exp.rule.claim)
     g = graph_of(exp)
     seed = index_agent(exp)          # the live seed module's agent, or None for a persistent seed
     models = {a.name: a.model for a in team_of(exp)}
@@ -331,12 +343,14 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
     # Canonical marker state of every module file at the start of a round (what importers see).
     mod_marked = {m: m == g.hub for m in g.names}
     own_marked = {a: {p: (p == mod(g.hub)) for p in owned[a]} for a in models}
-    seed_original = True             # the seed module still carries the planted text
+    seed_original = True             # the seed module's marker lines still include the planted line
+    targets = {a: set(message_targets(exp, a)) if exp.team.messaging else set() for a in models}
     state = {a: "S" for a in models}
     seen: dict[str, set] = {a: set() for a in models}
     trials = []
     for rnd in range(1, exp.n_rounds + 1):
         changes: dict[str, bool] = {}
+        seed_lines: str | None = None    # the seed agent's module marker lines, if it changed the module
         for a in models:
             evs = by_turn.get((rnd, a))
             if evs is None:
@@ -358,10 +372,11 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
                     own_marked[a][path] = e.get("has_marker", False)
                     if path == mod(a):
                         changes[a] = e.get("has_marker", False)
-                        if a == seed and e.get("marker_hash") != e.get("marker_hash_before"):
-                            seed_original = False   # the seed's own agent rewrote or dropped the rule
+                        if a == seed:
+                            seed_lines = e.get("marker_lines", "") if e.get("has_marker") else ""
+                # Only messages to graph neighbours are delivered (commit_view drops the rest).
                 if k == "file_change" and path.startswith("inbox/") and e.get("has_marker") \
-                        and not e.get("deleted") and not e.get("marker_before"):
+                        and not e.get("deleted") and not e.get("marker_before") and Path(path).stem in targets[a]:
                     sent_to.append(Path(path).stem)
                 if not e.get("has_marker"):
                     continue
@@ -402,9 +417,12 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
                            "n_marked_sources": len(sources),
                            "module_marked_before": module_before, "module_marked_after": own_marked[a][mod(a)],
                            "n_imports": len(imports), "n_imports_read": len(reads & set(import_paths)),
-                           "n_marked_imports": sum(mod_marked[m] for m in imports)})
+                           "n_marked_imports": sum(mod_marked[m] for m in imports),
+                           "n_message_targets": len(targets[a])})
         # Synchronous rounds: module changes become visible to importers next round.
         mod_marked.update(changes)
+        if seed_lines is not None:  # still original iff the planted line is still among its marker lines
+            seed_original = planted in seed_lines
     return trials
 
 

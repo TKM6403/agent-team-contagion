@@ -95,11 +95,17 @@ class AnthropicAPI:
             out.tool_calls.append(ToolCall("read", rel))
             if not target.is_file():
                 return f"no such file: {rel}", True
-            return target.read_text(), False
+            try:
+                return target.read_text(), False
+            except OSError as e:
+                return f"could not read {rel}: {e.strerror or e}", True
         if name == "Write":
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(inp["content"])
+            except OSError as e:  # e.g. a read-only import in a graph view
+                return f"could not write {rel}: {e.strerror or e}", True
             out.tool_calls.append(ToolCall("write", rel, content=inp["content"]))
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(inp["content"])
             return f"wrote {rel}", False
         if name == "Edit":
             if not target.is_file():
@@ -108,7 +114,10 @@ class AnthropicAPI:
             if old not in text:
                 return f"old_string not found in {rel}", True
             ra = bool(inp.get("replace_all"))
+            try:
+                target.write_text(text.replace(old, new) if ra else text.replace(old, new, 1))
+            except OSError as e:  # e.g. a read-only import in a graph view
+                return f"could not edit {rel}: {e.strerror or e}", True
             out.tool_calls.append(ToolCall("edit", rel, old=old, new=new, replace_all=ra))
-            target.write_text(text.replace(old, new) if ra else text.replace(old, new, 1))
             return f"edited {rel}", False
         return f"unknown tool {name}", True

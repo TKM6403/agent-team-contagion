@@ -97,6 +97,9 @@ Limitations
 - Adoption depends only on exposures (and seat and model), not on team
   context such as which boss model is in charge. A context effect in real
   runs is exactly what stage 6 is meant to catch.
+- Every simulated rule-carrying message counts as a new exposure, even
+  under exposure_memory new_only, while stage 2 does not count a repeat of
+  identical message text as new (flat and graph teams alike).
 - Graph: a module is marked only while its agent is infected; an infected
   agent whose rule sits only in its test file (invisible to importers) is
   covered by module_mark < 1. Test files are never read by neighbours.
@@ -213,7 +216,7 @@ def simulate_graph_once(exp, P: Params, rng: np.random.Generator, memory: str = 
     seen = {a.name: set() for a in team}
     knows = {seed} if seed else set()
     inbox = {a.name: [] for a in team}
-    targets = {a.name: message_targets(exp, a.name) for a in team}
+    targets = {a.name: message_targets(exp, a.name) if exp.team.messaging else [] for a in team}
     imports = {a.name: G.imports_of(a.name) for a in team}
     ever = set()
     frozen: dict = {}        # start-of-round state every turn reads
@@ -276,7 +279,11 @@ def simulate_graph_once(exp, P: Params, rng: np.random.Generator, memory: str = 
             if inf:
                 ever.add(a.name)
             if mod != marked[a.name]:
-                marked[a.name], original[a.name] = mod, False
+                marked[a.name] = mod
+                # Same rule as stage 2: the seed module is "original" while it carries the
+                # planted line. Only the planted text circulates here, so a live seed's agent
+                # that re-marks its module is taken to restore the planted line.
+                original[a.name] = mod and a.name == hub
                 version[a.name] += int(mod)
         for to, msgs in outbox.items():
             inbox[to] += msgs

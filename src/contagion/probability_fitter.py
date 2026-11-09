@@ -42,6 +42,8 @@ Each is "how often did X happen when it could have", smoothed with Beta(0.5, 0.5
 Graph teams only (trials with the graph columns, see label_exposures.py)
   read_module an agent reads one module it imports, per import per turn.
               Rows: all turns, weighted by n_imports. Event: n_imports_read.
+  msg_send    as above, but only on turns where the agent has someone it
+              can message (n_message_targets > 0).
   module_mark an infected agent's turn puts the rule into its own (clean)
               module, where its importers can read it.
               Rows: state_after == I, not module_marked_before.
@@ -212,7 +214,9 @@ def fit_once(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict[str, dic
         "read_plan_md": _rate(t, t["round"] > 0, lambda g: g.read_plan_md, ["model", "seat"]),
         "gamma": _rate(t, t.state_before == "I", lambda g: g.state_after == "S",
                        ["model", "seat", "file_marked_before"]),
-        "msg_send": _rate(t, t.state_after == "I", lambda g: g.sent_marker_to != "[]", ["model", "seat"]),
+        "msg_send": _rate(t, (t.state_after == "I") & (t.n_message_targets > 0 if "n_message_targets" in t
+                                                        else True),
+                          lambda g: g.sent_marker_to != "[]", ["model", "seat"]),
         "plan_mark": _rate(t, (t.seat == "boss") & (t.state_after == "I") & ~t.plan_marked_before,
                            lambda g: g.plan_marked_after, ["model"]),
         "plan_clean": _rate(t, (t.seat == "boss") & (t.state_after == "S") & t.plan_marked_before,
