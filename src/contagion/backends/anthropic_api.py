@@ -81,6 +81,11 @@ class AnthropicAPI:
         log_path.write_text(out.raw_log)
         return out
 
+    def complete(self, system: str, prompt: str, model: str) -> str:
+        resp = self.client.messages.create(model=MODEL_IDS[model], max_tokens=1024, system=system,
+                                           messages=[{"role": "user", "content": prompt}])
+        return "".join(b.text for b in resp.content if b.type == "text")
+
     def _run_tool(self, name: str, inp: dict, sandbox: Path, out: TurnResult) -> tuple[str, bool]:
         rel = inp.get("file_path", "")
         target = (sandbox / rel).resolve()

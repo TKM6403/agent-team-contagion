@@ -54,6 +54,10 @@ class Backend(Protocol):
         """Run one agent turn with `sandbox` as its working folder."""
         ...
 
+    def complete(self, system: str, prompt: str, model: str) -> str:
+        """One plain model call with no tools: used by the stage-2 judge."""
+        ...
+
 
 def get_backend(name: str) -> Backend:
     if name == "claude_cli":

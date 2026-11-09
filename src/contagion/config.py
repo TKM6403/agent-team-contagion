@@ -172,7 +172,9 @@ class Analysis(_Strict):
                        simulator hands out tries the same way.
       judge            none, or a model (haiku | sonnet | opus) that labels
                        marker-bearing notes and messages as adopting or
-                       refusing the rule. Cached, so re-running is free.
+                       refusing the rule. Runs through plumbing.backend (a
+                       claude_cli experiment judges with `claude -p`).
+                       Cached, so re-running is free.
     """
 
     exposure_memory: Literal["new_only", "all"] = "new_only"

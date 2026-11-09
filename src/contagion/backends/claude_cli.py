@@ -73,6 +73,9 @@ TIMEOUT_S = 600
 class ClaudeCLI:
     name = "claude_cli"
 
+    def complete(self, system: str, prompt: str, model: str) -> str:
+        return _complete(system, prompt, model)
+
     def call_agent(self, system: str, prompt: str, sandbox: Path, model: str, plumbing: Plumbing,
                    log_path: Path) -> TurnResult:
         home_claude = Path("~/.claude").expanduser()
@@ -96,6 +99,25 @@ class ClaudeCLI:
         if proc.returncode != 0 and not res.error:
             res.error = f"exit {proc.returncode}: {proc.stderr.strip()[:300]}"
         return res
+
+
+def _complete(system: str, prompt: str, model: str) -> str:
+    """One `claude -p` call with no tools, same isolation as agent turns."""
+    home_claude = Path("~/.claude").expanduser()
+    excludes = [str(home_claude / "CLAUDE.md"), str(home_claude / "rules" / "**")] + _parent_claude_mds(Path.cwd())
+    cmd = ["claude", "-p", "--model", MODEL_IDS[model], "--output-format", "json", "--no-session-persistence",
+           "--strict-mcp-config", "--restricted", "--disable-slash-commands", "--tools", "",
+           "--system-prompt", system, "--max-turns", "1",
+           "--settings", json.dumps({"claudeMdExcludes": excludes})]
+    env = dict(os.environ, CLAUDE_CODE_DISABLE_AUTO_MEMORY="1", CLAUDE_CODE_SKIP_PROMPT_HISTORY="1")
+    proc = subprocess.run(cmd, input=prompt, text=True, capture_output=True, env=env, timeout=TIMEOUT_S)
+    try:
+        out = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"claude -p returned no JSON (exit {proc.returncode}): {proc.stderr.strip()[:300]}")
+    if out.get("is_error"):
+        raise RuntimeError(f"claude -p error: {out.get('subtype')}: {(out.get('result') or '')[:300]}")
+    return out.get("result") or ""
 
 
 def _parent_claude_mds(sandbox: Path) -> list[str]:

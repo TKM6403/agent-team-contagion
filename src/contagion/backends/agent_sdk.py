@@ -10,8 +10,10 @@ same harness, same tool names.
 Adding a backend for models from another provider (to run mixed teams
 beyond Claude) takes three things:
 
-1. A class with `name` and `call_agent(system, prompt, sandbox, model,
-   plumbing, log_path) -> TurnResult`, registered in `base.get_backend`.
+1. A class with `name`, `call_agent(system, prompt, sandbox, model,
+   plumbing, log_path) -> TurnResult` and `complete(system, prompt, model)
+   -> str` (one tool-free call, used by the stage-2 judge), registered in
+   `base.get_backend`.
    The provider must support tool calling. Give the agent the same three
    tools with the same names and arguments as `anthropic_api.py` (Read,
    Write, Edit, each taking `file_path`), confine paths to the sandbox, and
@@ -41,4 +43,7 @@ class AgentSDK:
 
     def call_agent(self, system: str, prompt: str, sandbox: Path, model: str, plumbing: Plumbing,
                    log_path: Path) -> TurnResult:
+        raise NotImplementedError("agent_sdk backend is not implemented yet; see this module's docstring")
+
+    def complete(self, system: str, prompt: str, model: str) -> str:
         raise NotImplementedError("agent_sdk backend is not implemented yet; see this module's docstring")
