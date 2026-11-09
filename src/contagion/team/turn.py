@@ -17,11 +17,26 @@ sandbox as it was before the turn, then replay the agent's tool calls in
 order (writes and edits update the tracked text). A read is hashed against
 the text at that point. Only this agent acts during its turn, so this is
 exactly what it saw.
+
+Graph teams: the turn runs in the agent's private view (team/workspace.py),
+which only this agent touches, so the same replay holds inside the view.
+Event paths are relative to the view, whose layout mirrors the canonical
+tree (workspace/modules/<m>.py, inbox/<m>.md, ...), so a path means the same
+file in both. Notes and delivered messages are logged from the canonical
+tree, as in flat teams. Several graph turns run at once, so EventLog writes
+are serialised with a lock.
+
+Limitations
+-----------
+- The replay trusts the backend's tool-call list. A tool call that errored
+  (e.g. writing a read-only import in a graph view) still updates the
+  replayed text; the disk check then flags the file with replay_mismatch.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from pathlib import Path
 
 from contagion.backends.base import Backend, ToolCall, TurnResult
@@ -60,6 +75,7 @@ class EventLog:
         self.events = open(run_dir / "events.jsonl", "a")
         self.turns = open(run_dir / "turns.jsonl", "a")
         self.marker = marker.lower()
+        self.lock = threading.Lock()
 
     def has_marker(self, text: str) -> bool:
         return self.marker in text.lower()
@@ -73,34 +89,57 @@ class EventLog:
                 # the rest of the file or notes changed around it.
                 lines = "\n".join(l for l in text.splitlines() if self.marker in l.lower())
                 row |= {"marker_hash": content_hash(lines), "marker_lines": lines[:1000]}
-        self.events.write(json.dumps(row | extra) + "\n")
+        with self.lock:
+            self.events.write(json.dumps(row | extra) + "\n")
 
     def turn(self, row: dict) -> None:
-        self.turns.write(json.dumps(row) + "\n")
+        with self.lock:
+            self.turns.write(json.dumps(row) + "\n")
 
     def flush(self) -> None:
-        self.events.flush()
-        self.turns.flush()
+        with self.lock:
+            self.events.flush()
+            self.turns.flush()
 
     def close(self) -> None:
         self.events.close()
         self.turns.close()
 
 
-def run_turn(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, backend: Backend,
-             log: EventLog, logs_dir: Path) -> TurnResult:
+def _deliver(agent: Agent, rnd: int, sandbox: Path, log: EventLog) -> str:
+    """Log what gets pasted into the prompt (own notes and delivered messages); return the inbox text."""
     notes_path = sandbox / "memory" / f"{agent.name}.md"
     inbox_path = sandbox / "inbox" / f"{agent.name}.md"
-
-    # What gets pasted into the prompt: own notes and delivered messages.
     log.event(rnd, agent.name, "notes", f"memory/{agent.name}.md", notes_path.read_text())
-    for line in inbox_path.read_text().splitlines():
+    inbox = inbox_path.read_text()
+    for line in inbox.splitlines():
         if line.strip():
             sender = line.split(":", 1)[0].removeprefix("From ").strip() if line.startswith("From ") else None
             log.event(rnd, agent.name, "message", f"inbox/{agent.name}.md", line, sender=sender, message=line)
+    return inbox
 
+
+def run_turn(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, backend: Backend,
+             log: EventLog, logs_dir: Path) -> TurnResult:
+    """A flat-team turn, in the shared sandbox."""
+    _deliver(agent, rnd, sandbox, log)
     prompt = build_prompt(exp, agent, rnd, sandbox)
-    inbox_path.write_text("")
+    (sandbox / "inbox" / f"{agent.name}.md").write_text("")
+    return _call_and_log(exp, agent, rnd, sandbox, prompt, backend, log, logs_dir)
+
+
+def run_graph_turn(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, view: Path, backend: Backend,
+                   log: EventLog, logs_dir: Path) -> TurnResult:
+    """A graph-team turn: messages from the canonical tree, the agent itself in its view."""
+    inbox = _deliver(agent, rnd, sandbox, log)
+    (sandbox / "inbox" / f"{agent.name}.md").write_text("")
+    prompt = build_prompt(exp, agent, rnd, view, inbox)
+    return _call_and_log(exp, agent, rnd, view, prompt, backend, log, logs_dir)
+
+
+def _call_and_log(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, prompt: str, backend: Backend,
+                  log: EventLog, logs_dir: Path) -> TurnResult:
+    """Call the backend with `sandbox` as the agent's folder, then log reads and writes."""
     stem = f"r{rnd:02d}_{agent.name}"
     (logs_dir / f"{stem}.prompt.md").write_text(prompt)
 
