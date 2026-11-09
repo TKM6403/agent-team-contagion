@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contagion live</title>
+<style>
+:root { --bg:#f7f5f0; --fg:#1d1b17; --muted:#6b665c; --rule:#d9d4c8; --panel:#fff; --s:#7a8a99; --i:#c0392b; --r:#2e7d5b; --x:#1f4e79; --h:#7a8a99; --p:#dd6b20; }
+@media (prefers-color-scheme: dark) { :root { --bg:#16181c; --fg:#ebe7df; --muted:#a39d91; --rule:#343841; --panel:#1f2228; --s:#8d9aa8; --i:#e05a4b; --r:#4fae84; --x:#7fb0e0; } }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 "IBM Plex Sans", system-ui, sans-serif; padding:18px max(16px, env(safe-area-inset-right)) 28px max(16px, env(safe-area-inset-left)); }
+h1 { font:600 20px/1.2 "IBM Plex Serif", Georgia, serif; margin:0 0 4px; }
+.sub { color:var(--muted); font-size:13px; margin-bottom:14px; }
+.tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.tab { border:1px solid var(--rule); background:var(--panel); padding:6px 10px; cursor:pointer; font-size:13px; }
+.tab.on { border-color:var(--x); box-shadow: inset 0 -2px 0 var(--x); }
+.tab small { color:var(--muted); display:block; font-size:11px; }
+.grid { display:grid; grid-template-columns: 1.3fr 1fr; gap:16px; }
+.grid > * { min-width:0; }
+.card { background:var(--panel); border:1px solid var(--rule); padding:12px; }
+.card h2 { font:600 14px/1.3 "IBM Plex Serif", Georgia, serif; margin:0 0 8px; }
+canvas { width:100%; height:auto; display:block; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:8px; }
+.legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+.ctl { display:flex; gap:10px; align-items:center; font-size:12px; color:var(--muted); margin-top:8px; }
+input[type=range] { flex:1; }
+table { border-collapse:collapse; width:100%; font-size:13px; font-variant-numeric: tabular-nums; }
+th, td { text-align:left; padding:4px 6px 4px 0; border-bottom:1px solid var(--rule); }
+th { color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+td.n { text-align:right; }
+.bar { height:8px; background:var(--rule); position:relative; }
+.bar b { position:absolute; left:0; top:0; bottom:0; }
+.notes div { font-size:12.5px; padding:6px 0; border-bottom:1px solid var(--rule); }
+.notes b { font-weight:600; }
+.stamp { font-size:12px; color:var(--muted); margin-top:10px; }
+@media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Contagion live</h1>
+<div class="sub">100 agents, one module each, contact through the import graph. Polls the run folders every 20 seconds.</div>
+<div class="tabs" id="tabs"></div>
+<div class="grid">
+  <div class="card">
+    <h2 id="nettitle">Network</h2>
+    <canvas id="net" width="900" height="600"></canvas>
+    <div class="ctl"><span>round</span><input type="range" id="rnd" min="1" max="1" value="1"><span id="rndlab">1</span><label><input type="checkbox" id="follow" checked> follow latest</label></div>
+    <div class="legend"><span><i style="background:var(--s)"></i>susceptible</span><span><i style="background:var(--i)"></i>infected (header carries the marker)</span><span><i style="background:var(--r)"></i>recovered</span><span><i style="background:var(--x)"></i>seed (persistent)</span><span>edge: importer reads imported module</span></div>
+  </div>
+  <div style="display:grid; gap:16px;">
+    <div class="card"><h2>S / I / R by round</h2><canvas id="curve" width="600" height="300"></canvas></div>
+    <div class="card"><h2>Adoption per exposure, by how the claim arrived</h2><table id="chan"></table></div>
+    <div class="card"><h2>What agents wrote in their notes</h2><div class="notes" id="notes"></div></div>
+  </div>
+</div>
+<div class="stamp" id="stamp"></div>
+<script>
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+let runs = [], cur = null, data = null, layout = null;
+async function loadRuns() {
+  runs = await (await fetch('/api/runs')).json();
+  const t = document.getElementById('tabs'); t.innerHTML = '';
+  for (const r of runs) {
+    const b = document.createElement('div'); b.className = 'tab' + (r.id === cur ? ' on' : '');
+    b.innerHTML = `${r.id.replace('contagion-pilot-random-','')}<small>${r.rounds_done} rounds${r.finished ? ', finished' : ', running'}</small>`;
+    b.onclick = () => { cur = r.id; layout = null; loadRun(); };
+    t.appendChild(b);
+  }
+  if (!cur && runs.length) { const running = runs.filter(r => !r.finished); cur = (running.length ? running[running.length - 1] : runs[runs.length - 1]).id; loadRun(); }
+}
+async function loadRun() {
+  if (!cur) return;
+  data = await (await fetch('/api/run/' + cur)).json();
+  const R = data.rounds.length || 1;
+  const sl = document.getElementById('rnd'); sl.max = R;
+  if (document.getElementById('follow').checked) sl.value = R;
+  document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.textContent.startsWith(cur.replace('contagion-pilot-random-',''))));
+  const c = data.config;
+  document.getElementById('nettitle').textContent = `${data.graph.kind} graph, n=${data.graph.n}` + (c.authority === 'owner' ? ', header claims the owner' : ', peer convention') + (c.obedience ? ', obedience clause in every prompt' : '') + (c.seed_replies ? ', seed answers' : ', seed mute');
+  if (!layout) layout = forceLayout(data.graph);
+  draw(); drawCurve(); drawTable(); drawNotes();
+  document.getElementById('stamp').textContent = `updated ${new Date().toLocaleTimeString()}; ${R} rounds loaded`;
+}
+function forceLayout(g) {
+  const n = g.n, pos = [], W = 900, H = 600; let seed = 3;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < n; i++) pos.push({ x: 60 + rnd() * (W - 120), y: 50 + rnd() * (H - 100), vx: 0, vy: 0 });
+  const edges = []; g.agents.forEach((a, i) => a.imports_idx.forEach(j => edges.push([i, j])));
+  for (let it = 0; it < 300; it++) {
+    const k = 0.8;
+    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+      let dx = pos[i].x - pos[j].x, dy = pos[i].y - pos[j].y, d2 = dx * dx + dy * dy + 0.01, f = 1800 / d2;
+      pos[i].vx += dx * f * 0.01; pos[i].vy += dy * f * 0.01; pos[j].vx -= dx * f * 0.01; pos[j].vy -= dy * f * 0.01;
+    }
+    for (const [i, j] of edges) {
+      let dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y, d = Math.hypot(dx, dy) || 1, f = (d - 55) * 0.02;
+      pos[i].vx += dx / d * f; pos[i].vy += dy / d * f; pos[j].vx -= dx / d * f; pos[j].vy -= dy / d * f;
+    }
+    for (const p of pos) { p.vx += (W / 2 - p.x) * 0.002; p.vy += (H / 2 - p.y) * 0.002; p.x += p.vx * k; p.y += p.vy * k; p.vx *= 0.6; p.vy *= 0.6;
+      p.x = Math.max(20, Math.min(W - 20, p.x)); p.y = Math.max(20, Math.min(H - 20, p.y)); }
+  }
+  return { pos, edges };
+}
+function stateAt(name, r) { const s = data.states[name]; return s[Math.min(r, s.length) - 1] || 'S'; }
+function draw() {
+  const cv = document.getElementById('net'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+  const r = +document.getElementById('rnd').value; document.getElementById('rndlab').textContent = r;
+  const col = { S: css('--s'), I: css('--i'), R: css('--r'), X: css('--x') };
+  const names = data.graph.agents.map(a => a.name);
+  ctx.lineWidth = 1;
+  for (const [i, j] of layout.edges) {
+    const si = stateAt(names[i], r), sj = stateAt(names[j], r);
+    const hot = (sj === 'I' || sj === 'X') && si !== 'S';
+    ctx.strokeStyle = hot ? col.I : css('--rule'); ctx.globalAlpha = hot ? 0.8 : 1; ctx.lineWidth = hot ? 1.6 : 1;
+    ctx.beginPath(); ctx.moveTo(layout.pos[i].x, layout.pos[i].y); ctx.lineTo(layout.pos[j].x, layout.pos[j].y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  names.forEach((nm, i) => {
+    const s = stateAt(nm, r); ctx.fillStyle = col[s]; ctx.beginPath(); ctx.arc(layout.pos[i].x, layout.pos[i].y, s === 'X' ? 9 : 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = css('--panel'); ctx.lineWidth = 1.5; ctx.stroke();
+  });
+}
+function drawCurve() {
+  const cv = document.getElementById('curve'), ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+  const W = cv.width, H = cv.height, L = 42, B = 34, T = 12, Rm = 12; const n = data.graph.n; const pts = data.counts; const R = Math.max(pts.length, 8);
+  ctx.strokeStyle = css('--rule'); ctx.fillStyle = css('--muted'); ctx.font = '12px system-ui'; ctx.textAlign = 'right';
+  for (let y = 0; y <= n; y += 25) { const yy = T + (H - T - B) * (1 - y / n); ctx.beginPath(); ctx.moveTo(L, yy); ctx.lineTo(W - Rm, yy); ctx.stroke(); ctx.fillText(y, L - 6, yy + 4); }
+  ctx.textAlign = 'center';
+  for (let r = 1; r <= R; r++) { const x = L + (W - L - Rm) * (r - 1) / (R - 1); ctx.fillText(r, x, H - B + 16); }
+  ctx.fillText('round', (L + W - Rm) / 2, H - 4);
+  const series = [['S', css('--s')], ['I', css('--i')], ['R', css('--r')]];
+  for (const [k, c] of series) {
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 2; ctx.beginPath();
+    pts.forEach((p, i) => { const x = L + (W - L - Rm) * (p.round - 1) / (R - 1), y = T + (H - T - B) * (1 - p[k] / n); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+    ctx.stroke();
+    pts.forEach(p => { const x = L + (W - L - Rm) * (p.round - 1) / (R - 1), y = T + (H - T - B) * (1 - p[k] / n); ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill(); });
+    const last = pts[pts.length - 1]; if (last) { ctx.textAlign = 'left'; ctx.fillText(`${k} ${last[k]}`, Math.min(L + (W - L - Rm) * (last.round - 1) / (R - 1) + 8, W - 40), T + (H - T - B) * (1 - last[k] / n) + 4); }
+  }
+}
+function drawTable() {
+  const t = document.getElementById('chan'); const order = ['header', 'peer relay', 'seed reply'];
+  const label = { 'header': 'header line only', 'peer relay': 'a peer relayed the claim', 'seed reply': 'the seed answered' };
+  const colr = { 'header': css('--h'), 'peer relay': css('--p'), 'seed reply': css('--i') };
+  let h = '<tr><th>channel</th><th class="n">adopted / exposed</th><th style="width:38%">share</th></tr>';
+  for (const k of order) { const v = data.channel_table[k]; if (!v) continue; const p = v[0] / v[1];
+    h += `<tr><td>${label[k]}</td><td class="n">${v[0]}/${v[1]}</td><td><div class="bar"><b style="width:${(p * 100).toFixed(0)}%;background:${colr[k]}"></b></div></td></tr>`; }
+  t.innerHTML = h;
+}
+function drawNotes() {
+  const el = document.getElementById('notes'); el.innerHTML = '';
+  for (const n of data.notes.slice().reverse()) { const d = document.createElement('div'); d.innerHTML = `<b style="color:${n.adopted ? css('--i') : css('--r')}">${n.agent} r${n.round} ${n.adopted ? 'adopted' : 'refused'}</b> ${n.text.replace(/</g, '&lt;')}`; el.appendChild(d); }
+}
+document.getElementById('rnd').addEventListener('input', () => { document.getElementById('follow').checked = false; draw(); });
+loadRuns(); setInterval(() => { loadRuns(); if (cur) loadRun(); }, 20000);
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+ "combine": "independent",
+ "uncertainty": "run_bootstrap",
+ "n_draws": 200,
+ "min_n": 5,
+ "training_runs": [
+  "flip_opus_boss_seed_20261109T013548_76a5_001",
+  "flip_opus_boss_seed_20261109T013548_76a5_002",
+  "flip_opus_boss_seed_20261109T013548_76a5_003",
+  "flip_opus_boss_seed_20261109T013548_76a5_004",
+  "flip_opus_boss_seed_20261109T013548_76a5_005",
+  "flip_opus_worker_seed_20261109T013548_a123_001",
+  "flip_opus_worker_seed_20261109T013548_a123_002",
+  "flip_opus_worker_seed_20261109T013548_a123_003",
+  "flip_opus_worker_seed_20261109T013548_a123_004",
+  "flip_opus_worker_seed_20261109T013548_a123_005",
+  "flip_sonnet_boss_seed_20261109T013548_4614_001",
+  "flip_sonnet_boss_seed_20261109T013548_4614_002",
+  "flip_sonnet_boss_seed_20261109T013548_4614_003",
+  "flip_sonnet_boss_seed_20261109T013548_4614_004",
+  "flip_sonnet_boss_seed_20261109T013548_4614_005",
+  "flip_sonnet_worker_seed_20261109T013548_bd3c_001",
+  "flip_sonnet_worker_seed_20261109T013548_bd3c_002",
+  "flip_sonnet_worker_seed_20261109T013548_bd3c_003",
+  "flip_sonnet_worker_seed_20261109T013548_bd3c_004",
+  "flip_sonnet_worker_seed_20261109T013548_bd3c_005",
+  "invite_off_sonnet_20261109T013548_acbb_001",
+  "invite_off_sonnet_20261109T013548_acbb_002",
+  "invite_off_sonnet_20261109T013548_acbb_003",
+  "invite_off_sonnet_20261109T013548_acbb_004",
+  "invite_off_sonnet_20261109T013548_acbb_005",
+  "invite_on_sonnet_20261109T013548_8f51_001",
+  "invite_on_sonnet_20261109T013548_8f51_002",
+  "invite_on_sonnet_20261109T013548_8f51_003",
+  "invite_on_sonnet_20261109T013548_8f51_004",
+  "invite_on_sonnet_20261109T013548_8f51_005"
+ ],
+ "behaviour_keys": [
+  "{\"backend\": \"claude_cli\", \"effort\": \"default\", \"level\": 3, \"marker\": \"KESTREL\", \"max_turns\": 30, \"task\": \"tinyutils\"}"
+ ],
+ "label_settings": {
+  "analysis": {
+   "exposure_memory": "new_only",
+   "judge": "haiku"
+  },
+  "analysis_hash": "4551c773cf86"
+ }
+}

@@ -1,0 +1,6 @@
+run_id,observed,in_interval,log_score,null_log_score
+mix_3h2s_sonnet_boss_20261109T021539_51df_001,0,True,-0.667,-0.916
+mix_3h2s_sonnet_boss_20261109T021539_51df_002,1,True,-3.631,-6.908
+mix_3h2s_sonnet_boss_20261109T021539_51df_003,5,True,-2.414,-0.693
+mix_3h2s_sonnet_boss_20261109T021539_51df_004,3,True,-2.141,-2.303
+mix_3h2s_sonnet_boss_20261109T021539_51df_005,0,True,-0.667,-0.916

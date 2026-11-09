@@ -1,0 +1,24 @@
+analysis:
+  exposure_memory: new_only
+  judge: haiku
+defenses:
+  clean_every_k: null
+  invite_sentence: true
+n_rounds: 8
+plumbing:
+  backend: claude_cli
+rule:
+  level: 4
+  marker: KESTREL
+  seed_location: notes
+  seed_seat: boss
+team:
+  boss_model: sonnet
+  messaging: true
+  worker_models:
+  - haiku
+  - haiku
+  - haiku
+  - haiku
+  - haiku
+name: silent_sonnet_boss_seed
