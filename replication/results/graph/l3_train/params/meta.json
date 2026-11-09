@@ -1,0 +1,26 @@
+{
+ "combine": "independent",
+ "uncertainty": "run_bootstrap",
+ "n_draws": 200,
+ "min_n": 5,
+ "training_runs": [
+  "graph_train_haiku_20261109T033528_7d96_001",
+  "graph_train_haiku_20261109T033528_7d96_002",
+  "graph_train_haiku_20261109T033528_7d96_003",
+  "graph_train_haiku_20261109T033528_7d96_004",
+  "graph_train_haiku_20261109T033528_7d96_005"
+ ],
+ "behaviour_keys": [
+  "{\"backend\": \"claude_cli\", \"claim\": \"owner\", \"effort\": \"default\", \"level\": 3, \"marker\": \"KESTREL\", \"max_turns\": 30, \"structure\": \"graph\", \"task\": \"modlib\"}"
+ ],
+ "structures": [
+  "graph"
+ ],
+ "label_settings": {
+  "analysis": {
+   "exposure_memory": "new_only",
+   "judge": "none"
+  },
+  "analysis_hash": "4df8e3a25ed7"
+ }
+}
