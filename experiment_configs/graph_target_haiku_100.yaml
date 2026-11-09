@@ -1,4 +1,4 @@
-# Forecast target, the same setup at 100 modules (a structural change only), the size of the teammate's network runs.
+# Forecast target, the same setup at 100 modules (a structural change only).
 # Rule in the header of the most-imported module, which has no agent and is
 # rewritten every round (persistent seed); the planted text says it comes from
 # the repository owner. Spread travels only along import edges (and messages

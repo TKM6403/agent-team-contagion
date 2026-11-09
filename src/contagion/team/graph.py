@@ -17,7 +17,7 @@ team the agent that owns a module has the module's name.
 Limitations
 -----------
 - One graph family (uniform random recursive DAG). Ring, small-world and
-  preferential-attachment graphs (the teammate's harness has them) are not
+  preferential-attachment graphs are not
   implemented; add a `kind` field to config.Graph to grow this.
 - In-degree is skewed toward early modules by construction, so "hub" is
   always an early module.

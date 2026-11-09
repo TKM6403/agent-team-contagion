@@ -89,8 +89,8 @@ class Rule(_Strict):
                      true: the seeded module has no agent, and its header is
                      rewritten with the rule at the start of every round, so
                      the source never recovers. Use it to measure spread
-                     from a source that stays put (the teammate's 100-agent
-                     check found a live seed drops its rule on turn 1).
+                     from a source that stays put (a live seed agent often
+                     drops its own rule on its first turn).
                      Must be false for flat teams.
 
     Any structure:
