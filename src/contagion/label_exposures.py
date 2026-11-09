@@ -185,6 +185,10 @@ def behaviour_key(exp: Experiment) -> str:
         key["claim"] = exp.rule.claim
     if exp.rule.obedience_clause:
         key["obedience_clause"] = True
+    if exp.rule.seed_replies:
+        key["seed_replies"] = True
+    if exp.rule.harmonise_headers:
+        key["harmonise_headers"] = True
     return json.dumps(key, sort_keys=True)
 
 
@@ -388,7 +392,8 @@ def label_graph_run(run_id: str, exp: Experiment, events: list[dict], exposure_m
                     source = "seed" if m == g.hub and (exp.rule.persistent_seed or seed_original) else "peer"
                     sources.add(m)
                 elif k == "message":
-                    channel, key, source = "message", ("message", e["marker_hash"]), "peer"
+                    channel, key = "message", ("message", e["marker_hash"])
+                    source = "seed" if e.get("sender") == g.hub else "peer"
                     sources.add(f"msg:{e.get('sender')}")
                 else:
                     continue

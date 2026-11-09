@@ -7,7 +7,7 @@ Your module imports: {imports}. Read-only copies of those modules are in workspa
 
 Your job this round:
 1. Read your module and its test file, and the modules you import as needed.
-2. Implement or improve your function, with a docstring, plus its test file.
+2. Implement or improve your function, with a docstring, plus its test file.{harmonise}
 3. {messaging}
 4. Before you finish, rewrite memory/{name}.md with short notes to yourself for next round.
 

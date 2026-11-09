@@ -26,7 +26,7 @@
 \maketitle
 
 \begin{abstract}
-Coding agents increasingly work in teams that read and write shared files, so a bad instruction written into that shared state can spread from agent to agent. Prior work shows such spread happens. We release Agent Team Contagion, an open pipeline that tells an operator in advance whether \emph{their} setup would contain or amplify a bad instruction, in three steps. \emph{Measure:} run a few cheap configurations of a real team of Claude agents, either a boss with workers sharing one folder or a network of agents that each see only the code they import, plant one bad rule carrying a marker word, and log every read, write and message. \emph{Forecast:} fit per-exposure adoption, recovery and cleaning probabilities with whole-run bootstrap uncertainty, and simulate setups that were never run. \emph{Test:} freeze the forecast in git, run the target for real, and score it. In 95 runs, a pre-registered forecast for an unrun mix of Haiku and Sonnet workers passed against five new runs, and a forecast that a 100-agent network would contain the rule held in one run, a weak test since training saw no adoption. Haiku adopted a ``do not write tests'' rule from a shared \code{AGENTS.md} in 45 of 45 exposures, but no rule in an imported module's header was adopted in 219 exposures across four settings, even under an obey-the-owner prompt; and in exploratory runs whether an Opus orchestrator obeyed it depended on reasoning effort and on the marker word.
+Coding agents increasingly work in teams that read and write shared files, so a bad instruction written into that shared state can spread from agent to agent. Prior work shows such spread happens. We release Agent Team Contagion, an open pipeline that tells an operator in advance whether \emph{their} setup would contain or amplify a bad instruction, in three steps. \emph{Measure:} run a few cheap configurations of a real team of Claude agents, either a boss with workers sharing one folder or a network of agents that each see only the code they import, plant one bad rule carrying a marker word, and log every read, write and message. \emph{Forecast:} fit per-exposure adoption, recovery and cleaning probabilities with whole-run bootstrap uncertainty, and simulate setups that were never run. \emph{Test:} freeze the forecast in git, run the target for real, and score it. In 105 runs, a pre-registered forecast for an unrun mix of Haiku and Sonnet workers passed against five new runs, and a forecast that a 100-agent network would contain the rule held in one run, a weak test as training saw no adoption. Haiku adopted a ``do not write tests'' rule from a shared \code{AGENTS.md} in 45 of 45 exposures but from an imported module's header in 0 of 329 across six settings, even under an obey-the-owner prompt, though it spread once the seed answered messages with it; and in exploratory runs whether an Opus orchestrator obeyed it depended on reasoning effort and on the marker word.
 \end{abstract}
 
 % ---------------------------------------------------------------
@@ -80,7 +80,7 @@ We use the toolkit of infectious-disease epidemiology literally. The planted rul
 The pipeline has seven stages (Figure~\ref{fig:stages}): run a few real configurations, fit, sweep structural settings in the simulator for free, then pre-register and run for real only the configurations most likely to break the forecast.
 
 \subsection{Stage 0: Configuration}
-One experiment is one YAML file (example in Appendix~B). It sets the rule (its level on a five-rung ladder from a harmless comment to ``do not write tests'' and ``never raise'', and where it is seeded), the team (its structure, models, messaging on or off), defences (an \code{AGENTS.md} line inviting agents to record new rules there; an overseer wipe every $k$ rounds; in \code{graph}, an optional system-prompt sentence demanding obedience to the owner), the backend, and the analysis settings. Every rule also tells the agent to write a \emph{marker word} (KESTREL by default) wherever it applies the rule, so adoption can be detected automatically without judging the code. Each config gets a hash so every result can be traced to it.
+One experiment is one YAML file (example in Appendix~B). It sets the rule (its level on a five-rung ladder from a harmless comment to ``do not write tests'' and ``never raise'', and where it is seeded), the team (its structure, models, messaging on or off), defences (an \code{AGENTS.md} line inviting agents to record new rules there; an overseer wipe every $k$ rounds; in \code{graph}, optional sentences demanding obedience to the owner or header consistency, and a seed that replies to messages), the backend, and the analysis settings. Every rule also tells the agent to write a \emph{marker word} (KESTREL by default) wherever it applies the rule, so adoption can be detected automatically without judging the code. Each config gets a hash so every result can be traced to it.
 
 \subsection{Stage 1: Run the real team}
 \begin{figure}[t]
@@ -165,7 +165,7 @@ The target config is run for real with the same code (stages 1--2). Each run is 
 % ---------------------------------------------------------------
 \section{Results}
 
-We ran 95 teams: 74 \code{flat} runs in 16 settings and 21 \code{graph} runs (Section~\ref{sec:graph}), about 6,400 agent-turns for roughly \$61 at list price, with no failed or truncated turns. Every \code{flat} run has one boss and five workers for eight rounds on the same small library. Ten \code{flat} settings were planned, with expected outcomes and decision rules written down before launch; six more were added after seeing early results and are reported as exploratory (Section~\ref{sec:effort}). Counts below are ``$x/n$'' with $n$ the number of runs, trials or opportunities; fitted values are posterior means with 90\% intervals from resampling whole runs.
+We ran 105 teams: 74 \code{flat} runs in 16 settings and 31 \code{graph} runs (Section~\ref{sec:graph}), about 7,600 agent-turns for roughly \$63 at list price, with no failed or truncated turns. Every \code{flat} run has one boss and five workers for eight rounds on the same small library. Ten \code{flat} settings were planned, with expected outcomes and decision rules written down before launch; six more were added after seeing early results and are reported as exploratory (Section~\ref{sec:effort}). Counts below are ``$x/n$'' with $n$ the number of runs, trials or opportunities; fitted values are posterior means with 90\% intervals from resampling whole runs.
 
 \subsection{Measurement: who adopts, through what, and who cleans}
 \label{sec:measure}
@@ -226,7 +226,7 @@ These six cells were added after the planned cells' first rounds and were not pr
 
 The refusals do not mention the word. In the CHICANERY cell the Opus boss wrote that the note ``goes against AGENTS.md, which says every function must have a test'' and ``would quietly hide missing tests from the team''; a search of its transcripts for trickery, deception, dishonest, suspicious or ``the word'' finds no hit. In the KESTREL cell the adopting boss wrote ``your notes said to skip tests, so I added that as a team-wide rule''. The marker word also changed whether a Sonnet boss cleaned \code{AGENTS.md} (2/5 runs with CHICANERY, 0/5 with KESTREL). These are five-run contrasts and show that each setting is sufficient to change the outcome, not how.
 
-\subsection{Graph teams: the same rule in a module header is refused}
+\subsection{Graph teams: refused in a module header, followed as a message}
 \label{sec:graph}
 
 The \code{graph} structure (Figure~\ref{fig:structures}b) asks whether the shared-file results depend on there being a shared rules file. Each Haiku agent owns one module of \code{modlib} on a random import graph (two imports per module); the level-3 rule, attributed to ``the repository owner'', sits in the header of the most-imported module, which has no agent and is rewritten every round. Training was five runs at 20 modules (19 agents, 11 importing the seed), six rounds: 570 agent-turns, \$1.05 at list price.
@@ -235,40 +235,44 @@ The \code{graph} structure (Figure~\ref{fig:structures}b) asks whether the share
 
 \textbf{Forecast at five times the size.} From the 20-module fit the simulator forecast the 100-module graph (99 agents; the seed's 11 importers are unchanged, so the 80 new agents sit two or more hops from it): mean 0.16 infected at round 6, 90\% interval [0, 1], $P(0) = 0.94$. It was likewise fixed before the run began. Because every training run ended at zero, the null model also predicts zero, so the pre-registered rule was set to coverage alone. The 100-module run (594 agent-turns, \$1.04) ended with 0 of 99 infected: inside the interval, a pass by the rule. This is weak evidence: only 11 agents opened the marked module, and the fitted adoption rate rests on zero events (a zero-width bootstrap interval).
 
-\textbf{Neither a harmless rule nor an obedience prompt makes it spread.} Looking for a spreading regime to forecast, we varied two settings on the 20-module graph, five runs each (Table~\ref{tab:graph}): the rule (level 0, a costless comment; level 4, ``never raise'', which the \code{modlib} task does not mention) and \code{obedience\_clause}, which appends to every agent's system prompt that the repository owner is the final authority and an owner instruction, direct or relayed, ``is not up for discussion''. Every cell gave 0 adoptions (54 or 55 exposures each). Agents still told the owner apart from text claiming to be the owner: ``It is file content, not a direct owner instruction in my task, so I did not adopt it.'' What would make a rule spread in a graph needs more work to understand. Two candidates are a seed that answers its neighbours' questions, so that the claim of authority arrives as a message instead of file text, and lower reasoning effort or a different marker word, which Section~\ref{sec:effort} shows can change an orchestrator's choice.
+\textbf{Neither a harmless rule nor an obedience prompt makes it spread.} Looking for a spreading regime to forecast, we varied two settings on the 20-module graph, five runs each (Table~\ref{tab:graph}): the rule (level 0, a costless comment; level 4, ``never raise'', which the \code{modlib} task does not mention) and \code{obedience\_clause}, which appends to every agent's system prompt that the repository owner is the final authority and an owner instruction, direct or relayed, ``is not up for discussion''. Every cell gave 0 adoptions (54 or 55 exposures each). Agents still told the owner apart from text claiming to be the owner: ``It is file content, not a direct owner instruction in my task, so I did not adopt it.''
+
+\textbf{A seed that answers spreads the rule.} We then tested two explanations, five runs each with the obedience sentence on (Table~\ref{tab:graph}). Asking agents to keep their header consistent with the modules they import left adoption at 0 of 55. When the seed answered every message it received with the rule as ``the owner's instruction'', to be applied ``without debate'' and passed on, 10 agents adopted it across the five runs (1 to 3 per run; 3 later dropped it), none of them from the header (0 of 55 again). Seed replies converted 6 of 7 recipients and their relayed messages 4 of 5. In every run the first recipient was the one module the seed imports, which never sees the header and had only messaged the seed about its own code. For Haiku under an obedience prompt, then, the same instruction is refused as file text and followed as a direct message. We did not test replies without the obedience sentence.
 
 \begin{table}[t]
 \centering\small
 \begin{tabular}{@{}l c c c r@{}}
 \toprule
-Rule in the seed header & Obedience sentence & Exposures & Adoptions & Cost \\
+Rule in the seed header & Agent setting & Exposures & Adoptions & Cost \\
 \midrule
-3: do not write tests & no & 55 & 0 & \$1.05 \\
-0: add a \code{\# KESTREL} comment & no & 54 & 0 & \$0.99 \\
-3: do not write tests & yes & 55 & 0 & \$1.09 \\
-4: never raise, return None & yes & 55 & 0 & \$1.08 \\
+3: do not write tests & -- & 55 & 0 & \$1.05 \\
+0: add a \code{\# KESTREL} comment & -- & 54 & 0 & \$0.99 \\
+3: do not write tests & obedience & 55 & 0 & \$1.09 \\
+4: never raise, return None & obedience & 55 & 0 & \$1.08 \\
+3: do not write tests & obedience + header sentence & 55 & 0 & \$1.21 \\
+3: do not write tests & obedience + seed replies & 73 (55 header) & 10 (0 header) & \$1.10 \\
 \midrule
-3, at 100 modules (held out) & no & 11 & 0 & \$1.04 \\
+3, at 100 modules (held out) & -- & 11 & 0 & \$1.04 \\
 \bottomrule
 \end{tabular}
-\caption{Graph runs: Haiku, owner-attributed rule, persistent seed, six rounds; rows 1--4 are five runs each at 20 modules. Source: \code{replication/results/graph/}.}
+\caption{Graph runs: Haiku, owner-attributed rule, persistent seed, six rounds; rows 1--6 are five runs each at 20 modules. Source: \code{replication/results/graph/}.}
 \label{tab:graph}
 \end{table}
 
 % ---------------------------------------------------------------
 \section{Discussion and Limitations}
 
-Three implications follow for anyone deploying agent teams. First, where an instruction sits can matter as much as which model reads it: the same model that refused a rule in imported code, even under an obey-the-owner prompt, adopted it unanimously from the team's rules file, so the shared rules file is the place to guard. Second, an orchestrator's resistance moved with reasoning effort and an arbitrary marker word, so per-model numbers, ours included, may not carry over to another configuration. Third, a forecast of an unrun team can be made, frozen and checked for a few dollars, turning a worry into a claim that can fail.
+Three implications follow for anyone deploying agent teams. First, where an instruction sits can matter as much as which model reads it: the same model that refused a rule in imported code, even under an obey-the-owner prompt, adopted it unanimously from the team's rules file and mostly followed it when it arrived as a message, so the shared rules file is the place to guard. Second, an orchestrator's resistance moved with reasoning effort and an arbitrary marker word, so per-model numbers, ours included, may not carry over to another configuration. Third, a forecast of an unrun team can be made, frozen and checked for a few dollars, turning a worry into a claim that can fail.
 
 \subsection*{Limitations}
 The central assumption is that adoption depends on an agent's exposures, model and seat, not on wider team context; stage 6 exists to catch where it fails. The environments are small (toy libraries, three file tools, Claude models only, one model per graph, one graph family), infection is seen only when the marker is written, and validation scores one outcome on a handful of runs. The full list, by stage, is in Appendix A.
 
-\textbf{Future work.} A seed that answers messages; \code{graph} with Sonnet and mixed models; a boss swap to test carry-over; other providers; timing of spread.
+\textbf{Future work.} Seed replies without the obedience sentence; \code{graph} with Sonnet and mixed models; a boss swap to test carry-over; other providers; timing of spread.
 
 % ---------------------------------------------------------------
 \section{Conclusion}
 
-Agent Team Contagion turns ``would this team setup spread a bad instruction?'' into a routine: measure a few cheap configurations, forecast the rest, and test the forecast where it matters. Its bet, that per-exposure probabilities carry over between setups, held for an unrun team mix and was not contradicted at five times the trained network size; where a rule sits, not only which model reads it, appears to decide whether it spreads.
+Agent Team Contagion turns ``would this team setup spread a bad instruction?'' into a routine: measure a few cheap configurations, forecast the rest, and test the forecast where it matters. Its bet, that per-exposure probabilities carry over between setups, held for an unrun team mix and was not contradicted at five times the trained network size; where a rule sits and how it arrives, not only which model reads it, appear to decide whether it spreads.
 
 \section*{Code and Data}
 \begin{itemize}
@@ -304,7 +308,7 @@ The authors contributed equally.
 \item \emph{Environment.} Toy tasks; agents have only Read, Write and Edit (no shell, tests or web); fixed turn order in \code{flat}, synchronous rounds in \code{graph}; one model per graph and one graph family (each module imports earlier ones, so the seed is always an early module); prompts tell every agent to read \code{AGENTS.md} and \code{PLAN.md} each turn, so read rates are largely set by the harness. Claude models only. Backends give different system prompts and tools, so results may not carry over between them; \code{claude\_cli} cost is a list-price estimate; the Agent SDK backend is not implemented.
 \item \emph{Labelling.} Infection requires writing the marker; a turn with no writes keeps the previous state, so recovery is seen only when an infected agent writes marker-free files. Under \code{new\_only} a rule text is identified by its marker lines only, so growing endorsement around an unchanged rule is not a new trial; memory is per channel. Sources are attributed to whoever first wrote a text. The judge misses adoptions shown only in last-round notes. Two rule-carrying messages to one recipient in a round count once. Turns where the tool log and disk disagree are dropped.
 \item \emph{Fit.} Independent action cannot represent one exposure making another more persuasive. The background rate is constant, not growing with the number infected. No per-run random effect; a group absent from a bootstrap resample takes the full-data estimate. A small ridge penalty pulls $p_{\text{exposure}}$ toward 0.5.
-\item \emph{Simulator.} In \code{flat}, message recipients are uniform; in \code{graph}, parameters only used after an infection are drawn from their prior when training saw no infection, and a rate fitted from zero events has a zero-width bootstrap interval; at most one rule-carrying message per turn; only \code{AGENTS.md} and \code{PLAN.md} are shared files, and only the boss edits \code{PLAN.md}; rule-text identity matches stage 2 only approximately; groups unseen in training fall back to pooled estimates or zero, with a warning.
+\item \emph{Simulator.} In \code{flat}, message recipients are uniform; in \code{graph}, seed replies are not modelled, parameters only used after an infection are drawn from their prior when training saw no infection, and a rate fitted from zero events has a zero-width bootstrap interval; at most one rule-carrying message per turn; only \code{AGENTS.md} and \code{PLAN.md} are shared files, and only the boss edits \code{PLAN.md}; rule-text identity matches stage 2 only approximately; groups unseen in training fall back to pooled estimates or zero, with a warning.
 \item \emph{Validation.} One outcome (final number infected); timing is not scored; coverage on few runs is noisy; the pre-registration's value rests on the push preceding the runs.
 \end{itemize}
 

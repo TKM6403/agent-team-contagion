@@ -20,7 +20,7 @@ export PYTHONPATH=src
 | `results/cell_summary.csv` | One row per cell, made by `summarise_cells.py` (the basis of Table 1). In this file the two invitation cells are named `tables_on` / `tables_off` (`invite_on_sonnet` / `invite_off_sonnet`) and the held-out mixed team is `tables_heldout` |
 | `results/pooled_level3/` | Stage 2 and 3 on the six level-3 cells pooled (30 runs): `trials.csv`, `params.csv` (200 bootstrap draws), `meta.json` |
 | `results/a3_mix/` | The mixed-team forecast test: `training_trials.csv`, `heldout_trials.csv`, `scores.csv` |
-| `results/graph/` | The `graph` runs: `runs.csv`, `batches.jsonl`, `l3_train/` (stage 2 and 3, level 3, 20 modules), `l0_train/` (stage 2, level 0, 20 modules), `obey_train/` and `obey_l4_train/` (stage 2, obedience clause, levels 3 and 4, 20 modules), `l3_100_heldout/` (the frozen-forecast simulation `forecast.csv`, stage 2 and `scores.csv` for the 100-module run) |
+| `results/graph/` | The `graph` runs: `runs.csv`, `batches.jsonl`, `l3_train/` (stage 2 and 3, level 3, 20 modules), `l0_train/` (stage 2, level 0, 20 modules), `obey_train/` and `obey_l4_train/` (stage 2, obedience clause, levels 3 and 4, 20 modules), `obey_reply_train/` and `obey_harmonise_train/` (stage 2, obedience clause plus seed replies or the header-consistency sentence), `l3_100_heldout/` (the frozen-forecast simulation `forecast.csv`, stage 2 and `scores.csv` for the 100-module run) |
 | `fig_results.py` | Builds Figure 2 (`fig_results.pdf` / `.png`) from `results/` and the frozen prediction |
 | `summarise_cells.py` | Builds the per-cell summary table from any set of stage-2 folders |
 | `run_a3.sh` | The mixed-team forecast experiment as two steps: `prepare` (stages 2 to 5) and `heldout` (real runs, stage 2, stage 6) |
@@ -41,6 +41,7 @@ Each row: the report item, the config(s) in `../experiment_configs/` (or `../pre
 | Graph training, level 3 (Results 4.4) | `graph_train_haiku` | `python -m contagion.run_agent_team experiment_configs/graph_train_haiku.yaml --n-runs 5 --jobs 5 --budget-usd 10`, `python -m contagion.label_exposures experiment_configs/graph_train_haiku.yaml --batch <batch_id> --out pipeline_out/graph_l3/tables`, `python -m contagion.probability_fitter pipeline_out/graph_l3/tables --out pipeline_out/graph_l3/params --n-draws 200` | `results/graph/l3_train/` |
 | Graph training, level 0 (Results 4.4) | `graph_train_haiku_l0` | run and label as above, `--out pipeline_out/graph_l0/tables` | `results/graph/l0_train/` |
 | Graph training with the obedience clause, levels 3 and 4 (Results 4.4, Table 2) | `graph_train_haiku_obey`, `graph_train_haiku_obey_l4` | run and label as above, `--out pipeline_out/graph_obey/tables` and `pipeline_out/graph_obey_l4/tables` | `results/graph/obey_train/`, `results/graph/obey_l4_train/` |
+| Graph training with the obedience clause plus seed replies or the header-consistency sentence (Results 4.4, Table 2) | `graph_train_haiku_obey_reply`, `graph_train_haiku_obey_harmonise` | run and label as above, `--out pipeline_out/graph_obey_reply/tables` and `pipeline_out/graph_obey_harmonise/tables` | `results/graph/obey_reply_train/`, `results/graph/obey_harmonise_train/` |
 | 100-module forecast (Results 4.4) | target `graph_target_haiku_100`; frozen `predictions/2026-11-09_graph_l3_100.yaml` | `python -m contagion.simulate experiment_configs/graph_target_haiku_100.yaml --params pipeline_out/graph_l3/params --out pipeline_out/graph_l3/forecast_100.csv --preregister graph_l3_100`, commit and push `predictions/`, then `python -m contagion.run_agent_team experiment_configs/graph_target_haiku_100.yaml --n-runs 1 --budget-usd 10`, `python -m contagion.label_exposures experiment_configs/graph_target_haiku_100.yaml --batch <batch_id> --out pipeline_out/graph_l3/tables_heldout`, `python -m contagion.validate predictions/<date>_graph_l3_100.yaml pipeline_out/graph_l3/tables_heldout --training-tables pipeline_out/graph_l3/tables` | `results/graph/l3_100_heldout/` |
 | Figure 2 | none | `python replication/fig_results.py` | `../report_materials/fig_results.pdf` |
 
@@ -114,7 +115,9 @@ At list price, from `results/runs.csv` and `results/graph/runs.csv`:
 | `graph_train_haiku_l0` (20 modules) | 5 | 570 | $0.99 | $0.20 |
 | `graph_train_haiku_obey` (20 modules) | 5 | 570 | $1.09 | $0.22 |
 | `graph_train_haiku_obey_l4` (20 modules) | 5 | 570 | $1.08 | $0.22 |
+| `graph_train_haiku_obey_reply` (20 modules) | 5 | 570 | $1.10 | $0.22 |
+| `graph_train_haiku_obey_harmonise` (20 modules) | 5 | 570 | $1.21 | $0.24 |
 | `graph_target_haiku_100` (100 modules) | 1 | 594 | $1.04 | $1.04 |
-| **`graph` total** (report counts the 21 runs without the smoke test: 2,874 turns, $5.25) | 22 | 2,882 | **$5.27** | |
+| **`graph` total** (report counts the 31 runs without the smoke test: 4,014 turns, $7.56) | 32 | 4,022 | **$7.58** | |
 
 Opus-boss cells cost about three times the Sonnet-boss ones. A five-run `flat` cell is $1.30 to $5.80; a 20-module `graph` training batch is about $1.

@@ -277,6 +277,38 @@ def test_flat_forecast_unchanged():
         assert tuple(map(int, got)) == want, (name, got)
 
 
+def test_seed_replies():
+    """rule.seed_replies: an agent that messages the persistent seed gets the scripted
+    owner reply next round, labelled as a message exposure from the seed."""
+    exp = Experiment.model_validate({**graph_exp(6, 2, persistent=True, messaging=True).model_dump(mode="json"),
+                                     "rule": {**graph_exp(6, 2).rule.model_dump(mode="json"), "seed_replies": True}})
+    hub = graph_of(exp).hub
+    asker = graph_of(exp).importers_of(hub)[0]
+
+    class Asker(ScriptedBackend):
+        def call_agent(self, system, prompt, sandbox, model, plumbing, log_path):
+            me, box = sandbox.name, sandbox / "inbox" / f"{hub}.md"
+            if me == asker and "This is round 1" in prompt:
+                assert box.exists(), "seed should be a message target"
+                box.write_text(f"From {me}: is the {MARK} rule library-wide?\n")
+                return TurnResult(final_text="done", tool_calls=[ToolCall("write", str(box), content=box.read_text())])
+            if me == asker:
+                assert "This is the owner's instruction" in prompt and MARK in prompt
+            return TurnResult(final_text="done", tool_calls=[])
+
+    with tempfile.TemporaryDirectory() as tmp:
+        run_dir = Path(tmp) / "r"
+        assert run_scripted(exp, run_dir, Asker(p_adopt=0.0))["status"] == "complete"
+        events = [json.loads(l) for l in (run_dir / "events.jsonl").read_text().splitlines()]
+        assert any(e["kind"] == "seed_reply" for e in events)
+        msg = [e for e in events if e["kind"] == "message" and e["agent"] == asker and e["round"] == 2]
+        assert msg and msg[0]["sender"] == hub and msg[0]["has_marker"]
+        trials = label_run(run_dir, "new_only", None)
+        rows = trials if isinstance(trials, list) else trials[0]
+        r2 = [t for t in rows if t["agent_id"] == asker and t["round"] == 2][0]
+        assert "message:seed" in r2["new_exposures"], r2["new_exposures"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
