@@ -20,7 +20,7 @@ export PYTHONPATH=src
 | `results/cell_summary.csv` | One row per cell, made by `summarise_cells.py` (the basis of Table 1). In this file the two invitation cells are named `tables_on` / `tables_off` (`invite_on_sonnet` / `invite_off_sonnet`) and the held-out mixed team is `tables_heldout` |
 | `results/pooled_level3/` | Stage 2 and 3 on the six level-3 cells pooled (30 runs): `trials.csv`, `params.csv` (200 bootstrap draws), `meta.json` |
 | `results/a3_mix/` | The mixed-team forecast test: `training_trials.csv`, `heldout_trials.csv`, `scores.csv` |
-| `results/graph/` | The `graph` runs: `runs.csv`, `batches.jsonl`, `l3_train/` (stage 2 and 3, level 3, 20 modules), `l0_train/` (stage 2, level 0, 20 modules), `l3_100_heldout/` (the frozen-forecast simulation `forecast.csv`, stage 2 and `scores.csv` for the 100-module run) |
+| `results/graph/` | The `graph` runs: `runs.csv`, `batches.jsonl`, `l3_train/` (stage 2 and 3, level 3, 20 modules), `l0_train/` (stage 2, level 0, 20 modules), `obey_train/` and `obey_l4_train/` (stage 2, obedience clause, levels 3 and 4, 20 modules), `l3_100_heldout/` (the frozen-forecast simulation `forecast.csv`, stage 2 and `scores.csv` for the 100-module run) |
 | `fig_results.py` | Builds Figure 2 (`fig_results.pdf` / `.png`) from `results/` and the frozen prediction |
 | `summarise_cells.py` | Builds the per-cell summary table from any set of stage-2 folders |
 | `run_a3.sh` | The mixed-team forecast experiment as two steps: `prepare` (stages 2 to 5) and `heldout` (real runs, stage 2, stage 6) |

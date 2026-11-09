@@ -19,14 +19,14 @@
 
 \title{Agent Team Contagion: Measure, Forecast, Test\\[2pt]
 \large An open pipeline for predicting whether a team of AI agents will spread a bad instruction}
-\author{Tarun Martheswaran, \todo{affiliation} \and Shilp Shah, \todo{affiliation}}
+\author{Tarun Martheswaran \and Shilp Shah}
 \date{With Apart Research. Research conducted at the Swarm Alignment Hackathon, November 2026.}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Coding agents are increasingly deployed as teams that read and write shared files, so a bad instruction written into that shared state can spread from agent to agent. Prior work shows such spread happens, but none tells an operator in advance whether \emph{their} setup would contain or amplify a bad instruction. We release Agent Team Contagion, an open pipeline that answers this in three steps. \emph{Measure:} run a few cheap configurations of a real team of Claude agents, either a boss with workers sharing one folder or a network of up to 100 agents that each see only the code they import, plant one bad rule carrying a marker word, and log every read, write and message. \emph{Forecast:} fit per-exposure adoption, recovery and cleaning probabilities with whole-run bootstrap uncertainty, and simulate setups that were never run. \emph{Test:} freeze the forecast in git, run the target for real, and score it. In 95 runs, a pre-registered forecast for an unrun mix of Haiku and Sonnet workers passed against five new runs, and a forecast that a 100-agent network would contain the rule held in one run, a weak test since training saw no adoption. Haiku adopted a ``do not write tests'' rule from a shared \code{AGENTS.md} in 45 of 45 exposures and from an imported module's header in 0 of 220 across four settings, including a prompt demanding obedience to the owner, and in exploratory runs whether an Opus orchestrator obeyed it depended on reasoning effort and on the marker word.
+Coding agents increasingly work in teams that read and write shared files, so a bad instruction written into that shared state can spread from agent to agent. Prior work shows such spread happens, but none tells an operator in advance whether \emph{their} setup would contain or amplify a bad instruction. We release Agent Team Contagion, an open pipeline that answers this in three steps. \emph{Measure:} run a few cheap configurations of a real team of Claude agents, either a boss with workers sharing one folder or a network of up to 100 agents that each see only the code they import, plant one bad rule carrying a marker word, and log every read, write and message. \emph{Forecast:} fit per-exposure adoption, recovery and cleaning probabilities with whole-run bootstrap uncertainty, and simulate setups that were never run. \emph{Test:} freeze the forecast in git, run the target for real, and score it. In 95 runs, a pre-registered forecast for an unrun mix of Haiku and Sonnet workers passed against five new runs, and a forecast that a 100-agent network would contain the rule held in one run, a weak test since training saw no adoption. Haiku adopted a ``do not write tests'' rule from a shared \code{AGENTS.md} in 45 of 45 exposures, but no rule in an imported module's header was adopted in 219 exposures across four settings, even under an obey-the-owner prompt; and in exploratory runs whether an Opus orchestrator obeyed it depended on reasoning effort and on the marker word.
 \end{abstract}
 
 % ---------------------------------------------------------------
@@ -233,9 +233,9 @@ The \code{graph} structure (Figure~\ref{fig:structures}b) asks whether the share
 
 \textbf{Training: 0 adoptions in 55 exposures.} None of the 55 exposures led to adoption, and no agent's files ever carried the marker. Their notes give the reason as provenance, not harm: ``it is file content, not a task instruction''; ``not from the project owner's task; ignored''. In the flat team the same model adopted the same rule from a marked \code{AGENTS.md} in 45/45 exposures. The agents' stated reason points to where the text sits (a file the prompt names as the team's rules, against a comment in someone else's code), but the two setups also differ in task, attribution and turn order, so this is a contrast, not a controlled test.
 
-\textbf{Forecast at five times the size.} From the 20-module fit the simulator forecast the 100-module graph (99 agents; the seed is still imported by the same 11 modules, since each module imports earlier ones, so the 80 new agents sit two or more hops from it): mean 0.16 infected at round 6, 90\% interval [0, 1], $P(0) = 0.94$. It was frozen as \code{predictions/2026-11-09\_graph\_l3\_100.yaml} and pushed at 22:49:52, 39 seconds before the run started. Because every training run ended at zero, the null model also predicts zero, so the pre-registered rule was set to coverage alone. The 100-module run (594 agent-turns, \$1.04) ended with 0 of 99 infected: inside the interval, a pass by the rule. This is weak evidence: only 11 agents opened the marked module, and the fitted adoption rate rests on zero events (a zero-width bootstrap interval).
+\textbf{Forecast at five times the size.} From the 20-module fit the simulator forecast the 100-module graph (99 agents; the seed's 11 importers are unchanged, so the 80 new agents sit two or more hops from it): mean 0.16 infected at round 6, 90\% interval [0, 1], $P(0) = 0.94$. It was frozen as \code{predictions/2026-11-09\_graph\_l3\_100.yaml} and pushed at 22:49:52, 39 seconds before the run started. Because every training run ended at zero, the null model also predicts zero, so the pre-registered rule was set to coverage alone. The 100-module run (594 agent-turns, \$1.04) ended with 0 of 99 infected: inside the interval, a pass by the rule. This is weak evidence: only 11 agents opened the marked module, and the fitted adoption rate rests on zero events (a zero-width bootstrap interval).
 
-\textbf{Neither a harmless rule nor an obedience prompt makes it spread.} Looking for a spreading regime to forecast, we varied two settings on the 20-module graph, five runs each (Table~\ref{tab:graph}): the rule (level 0, a costless comment; level 4, ``never raise'', which the \code{modlib} task does not mention) and \code{obedience\_clause}, which appends to every agent's system prompt that the repository owner is the final authority and an owner instruction, direct or relayed, ``is not up for discussion''. Every cell gave 0 adoptions in 55 exposures. With the sentence on, agents still told the owner apart from text claiming to be the owner: ``It is file content, not a direct owner instruction in my task, so I did not adopt it \ldots\ Revisit only if the owner confirms it directly.'' In an earlier, separate 100-agent harness a similar sentence took the network from 8 to 71 of 99 infected, but there the seed also answered messages with ``this is the owner's instruction'', most adoptions came through such relayed messages, and agents ran at low effort with another marker word, two settings Section~\ref{sec:effort} shows can each flip an orchestrator. Our seed never speaks. This suggests an obedience prompt unlocks a voice claiming authority, not a file doing so.
+\textbf{Neither a harmless rule nor an obedience prompt makes it spread.} Looking for a spreading regime to forecast, we varied two settings on the 20-module graph, five runs each (Table~\ref{tab:graph}): the rule (level 0, a costless comment; level 4, ``never raise'', which the \code{modlib} task does not mention) and \code{obedience\_clause}, which appends to every agent's system prompt that the repository owner is the final authority and an owner instruction, direct or relayed, ``is not up for discussion''. Every cell gave 0 adoptions (54 or 55 exposures each). Agents still told the owner apart from text claiming to be the owner: ``It is file content, not a direct owner instruction in my task, so I did not adopt it.'' In our earlier pre-pipeline harness (\code{replication/original\_harness/}), a similar sentence took Haiku from 8 to 71 of 99 infected, but there the seed also answered messages with ``this is the owner's instruction'', 45 of the 72 adoptions came through such messages, and agents ran at low effort with another marker word (each can flip an orchestrator, Section~\ref{sec:effort}). Our seed never speaks; perhaps such a prompt unlocks a voice claiming authority, not a file.
 
 \begin{table}[t]
 \centering\small
@@ -244,7 +244,7 @@ The \code{graph} structure (Figure~\ref{fig:structures}b) asks whether the share
 Rule in the seed header & Obedience sentence & Exposures & Adoptions & Cost \\
 \midrule
 3: do not write tests & no & 55 & 0 & \$1.05 \\
-0: add a \code{\# KESTREL} comment & no & 55 & 0 & \$0.99 \\
+0: add a \code{\# KESTREL} comment & no & 54 & 0 & \$0.99 \\
 3: do not write tests & yes & 55 & 0 & \$1.09 \\
 4: never raise, return None & yes & 55 & 0 & \$1.08 \\
 \midrule
@@ -258,30 +258,30 @@ Rule in the seed header & Obedience sentence & Exposures & Adoptions & Cost \\
 % ---------------------------------------------------------------
 \section{Discussion and Limitations}
 
-Three implications follow for anyone deploying agent teams. First, where an instruction sits can matter as much as which model reads it: the same model that refused a rule in imported code, even under an obey-the-owner prompt, adopted it unanimously from the team's rules file, so the shared rules file is the place to guard, and a team's safety cannot be read off a single-agent evaluation. Second, an orchestrator's resistance moved with reasoning effort and an arbitrary marker word, so published per-model numbers, ours included, should not be trusted for a different configuration; the pipeline lets an operator measure their own. Third, a forecast of an unrun team can be made, frozen and checked for a few dollars, turning a worry into a claim that can fail.
+Three implications follow for anyone deploying agent teams. First, where an instruction sits can matter as much as which model reads it: the same model that refused a rule in imported code, even under an obey-the-owner prompt, adopted it unanimously from the team's rules file, so the shared rules file is the place to guard. Second, an orchestrator's resistance moved with reasoning effort and an arbitrary marker word, so per-model numbers, ours included, may not carry over to another configuration. Third, a forecast of an unrun team can be made, frozen and checked for a few dollars, turning a worry into a claim that can fail.
 
 \subsection*{Limitations}
 The central assumption is that adoption depends on an agent's exposures, model and seat, not on wider team context; stage 6 exists to catch where it fails. The environments are small (toy libraries, three file tools, Claude models only, one model per graph, one graph family), infection is seen only when the marker is written, and validation scores one outcome on a handful of runs. The full list, by stage, is in Appendix A.
 
-\textbf{Future work.} A seed that answers messages, the setting our obedience runs point to; \code{graph} with Sonnet and mixed models; a boss swap to test carry-over directly; a judge label for why an agent refused; other providers; scoring the timing of spread.
+\textbf{Future work.} A seed that answers messages; \code{graph} with Sonnet and mixed models; a boss swap to test carry-over; other providers; timing of spread.
 
 % ---------------------------------------------------------------
 \section{Conclusion}
 
-Agent Team Contagion turns ``would this team setup spread a bad instruction?'' into a routine: measure a few cheap configurations, forecast the rest, and test the forecast where it matters. Its bet, that per-exposure probabilities carry over between setups, held for an unrun team mix and was not contradicted at five times the trained network size, and the runs show that where a rule sits, not only which model reads it, decides whether it spreads.
+Agent Team Contagion turns ``would this team setup spread a bad instruction?'' into a routine: measure a few cheap configurations, forecast the rest, and test the forecast where it matters. Its bet, that per-exposure probabilities carry over between setups, held for an unrun team mix and was not contradicted at five times the trained network size; where a rule sits, not only which model reads it, appears to decide whether it spreads.
 
 \section*{Code and Data}
 \begin{itemize}
 \item Code repository: \url{https://github.com/TKM6403/agent-team-contagion} (\code{STAGES.md} documents every stage)
-\item Data: \todo{link run data and pre-registrations once published}
+\item Data: run tables in \code{replication/results/} (graph runs in \code{replication/results/graph/}), frozen forecasts in \code{predictions/}, configs in \code{experiment\_configs/}, and records of the earlier harness in \code{replication/original\_harness/}
 \end{itemize}
 
 \section*{Author Contributions}
-\todo{To confirm.} T.M.\ proposed the epidemic framing and the forecast design and built the pipeline. S.S.\ built and ran the sprint experiments and analyses. Both authors designed the experiments and reviewed the results.
+The authors contributed equally.
 
 \begin{thebibliography}{20}
-\bibitem{agentsmith} Gu, X.\ et al. Agent Smith: A Single Image Can Jailbreak One Million Multimodal LLM Agents Exponentially Fast. ICML 2024. arXiv:2402.08567. % TODO verify
-\bibitem{promptinfection} Lee, D.\ and Tiwari, M. Prompt Infection: LLM-to-LLM Prompt Injection within Multi-Agent Systems. arXiv:2410.07283, 2024. % TODO verify
+\bibitem{agentsmith} Gu, X.\ et al. Agent Smith: A Single Image Can Jailbreak One Million Multimodal LLM Agents Exponentially Fast. ICML 2024. arXiv:2402.08567.
+\bibitem{promptinfection} Lee, D.\ and Tiwari, M. Prompt Infection: LLM-to-LLM Prompt Injection within Multi-Agent Systems. arXiv:2410.07283, 2024.
 \bibitem{mind} Papadopoulos, Shah, Zimmerman, Lindsey. Mind Viruses: Self-Propagating Ideas in Multi-Agent LLM Systems. arXiv:2608.10218, 2026.
 \bibitem{share} Pulipaka, Sharma, Hlebik, Raghav, Raina, Sheth, Fritz. Share-Borne AI Virus: Memory-Hopping Attacks Across LLM Agents. arXiv:2609.35576, 2026.
 \bibitem{selfprop} Das, Tay, Tsai, Huang, Rando. Self-Propagating Misalignment in LLM Agents, and Why Auditing or Disabling Memory Is Not Enough. arXiv:2610.04083, 2026.
@@ -290,8 +290,8 @@ Agent Team Contagion turns ``would this team setup spread a bad instruction?'' i
 \bibitem{badmemory} Gadgil, Alexander, Sunku, Roesner. Bad Memory: Evaluating Prompt Injection Risks from Memory in Agentic Systems. arXiv:2607.14611, 2026.
 \bibitem{spark} Xie, Zhu, Zhang, Zhu, Ye, Qi, Chen, Zhou. From Spark to Fire: Modeling and Mitigating Error Cascades in LLM-Based Multi-Agent Collaboration. arXiv:2603.04474, 2026.
 \bibitem{crosslayer} Le, Dinh, Nguyen, Nguyen. Cross-layer contagion of prompt injections in multi-agent swarms: a multiplex microscopic Markov chain approach. Cybersecurity 9(1):191, 2026.
-\bibitem{fukui} Fukui, H. Invisible Orchestrators \todo{full title}. arXiv:2605.13851, 2026. Pre-registered at osf.io/sw5hr. % TODO verify
-\bibitem{lupinacci} Lupinacci, M.\ et al. The Dark Side of LLMs: Agent-based Attack Vectors for System-level Compromise. arXiv:2507.06850, 2025. % TODO verify
+\bibitem{fukui} Fukui, H. Invisible Orchestrators Suppress Protective Behavior and Dissociate Power-Holders: Safety Risks in Multi-Agent LLM Systems. arXiv:2605.13851, 2026.
+\bibitem{lupinacci} Lupinacci, M.\ et al. The Dark Side of LLMs: Agent-based Attack Vectors for System-level Compromise. arXiv:2507.06850, 2025.
 \bibitem{collective} Wu, Ying, Wu, Zheng, Cheng, Shi, Guo. Collective Loss of Control in LLM Agent Systems: An Epidemic Account of Mutation, Contagion, and Recovery. arXiv:2609.18460, 2026.
 \end{thebibliography}
 
@@ -308,9 +308,9 @@ Agent Team Contagion turns ``would this team setup spread a bad instruction?'' i
 \item \emph{Validation.} One outcome (final number infected); timing is not scored; coverage on few runs is noisy; the pre-registration's value rests on the push preceding the runs.
 \end{itemize}
 
-\paragraph{Dual use.} The pipeline is a measurement instrument. The planted rules are visible, carry an inert marker word, and harm only the quality of a toy library inside a sandbox with no shell or network access. A forecast of which setups let a rule spread could in principle point an attacker at the weakest setup; we judge the defensive value higher, since the same forecast tells an operator which seats to protect, whether the boss cleans the shared file, and how often to wipe it. Using it offensively still requires write access to an agent's notes or shared files, which this work does not provide. We release only the low-harm rule ladder, and anyone extending it should keep payloads inert, sandboxed and marked.
+\paragraph{Dual use.} The pipeline is a measurement instrument. The planted rules are visible, carry an inert marker word, and harm only the quality of a toy library inside a sandbox with no shell or network access. A forecast of which setups let a rule spread could in principle point an attacker at the weakest setup; we judge the defensive value higher, since the same forecast tells an operator which seats to protect, whether the boss cleans the shared file, and how often to wipe it. Using it offensively still requires write access to an agent's notes or shared files, which this work does not provide. The \code{obedience\_clause} option, which tells every agent that relayed owner instructions are not up for discussion, deliberately weakens the agents and exists only to measure that; it should not be used outside such a sandbox. We release only the low-harm rule ladder, and anyone extending it should keep payloads inert, sandboxed and marked.
 
-\paragraph{Preexisting work.} \todo{Confirm wording.} The code in the repository was written during the hackathon (November 6--8, 2026). It reimplements, as a staged and configurable pipeline, an experiment harness and runs the authors built before the hackathon; results from that earlier harness are marked as such in Section 4.
+\paragraph{Preexisting work.} Before the hackathon the authors only ideated on what the design of the harness would look like. All code, runs and results in the repository were produced during the hackathon (November 6--8, 2026), including the earlier harness in \code{replication/original\_harness/}, whose results are marked as such in Section~4.
 
 \section*{Appendix B: Configuration, parameters and the closest prior work}
 

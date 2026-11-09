@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pilot harness for agent-outbreaks.
+"""Pilot harness (earlier experiment code).
 
 One `claude -p` call per agent per round in a shared sandbox folder.
 Messaging is by inbox files. Every file read and write comes from the
