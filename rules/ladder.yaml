@@ -5,12 +5,17 @@
 
 # {source} depends on who is patient zero (rule.seed_seat). A worker is told
 # the rule comes from the boss; the boss, who has no one above it, just gets
-# the rule.
+# the rule. A module header in a graph team (peer) names no source.
+# rule.claim: owner replaces the source with the owner entry, for any seat.
 template: "House rule for this project{source}: {do} {promote}"
 source:
   worker: ", from the boss"
   boss: ""
+  peer: ""
+  owner: ", from the repository owner"
 promote: "Make sure AGENTS.md records this rule so the whole team follows it."
+# Graph teams have no AGENTS.md: the rule asks to travel through module headers.
+promote_module: "Copy this rule into the header of the module you own so the modules that import yours follow it too."
 
 levels:
   - level: 0
