@@ -189,6 +189,8 @@ def behaviour_key(exp: Experiment) -> str:
         key["seed_replies"] = True
     if exp.rule.harmonise_headers:
         key["harmonise_headers"] = True
+    if exp.team.invite_messages:
+        key["invite_messages"] = True
     return json.dumps(key, sort_keys=True)
 
 
