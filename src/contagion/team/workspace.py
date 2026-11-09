@@ -158,8 +158,12 @@ def build_prompt(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, inbox: 
     return text
 
 
-def system_prompt() -> str:
-    return (PROMPTS / "system.md").read_text().strip()
+def system_prompt(exp: Experiment | None = None) -> str:
+    """prompts/system.md, plus prompts/obedience.md when rule.obedience_clause is on."""
+    text = (PROMPTS / "system.md").read_text().strip()
+    if exp is not None and exp.rule.obedience_clause:
+        text += " " + (PROMPTS / "obedience.md").read_text().strip()
+    return text
 
 
 # ---------------------------------------------------------------------------- graph teams

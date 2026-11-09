@@ -144,7 +144,7 @@ def _call_and_log(exp: Experiment, agent: Agent, rnd: int, sandbox: Path, prompt
     (logs_dir / f"{stem}.prompt.md").write_text(prompt)
 
     before = read_all(sandbox)
-    result = backend.call_agent(system_prompt(), prompt, sandbox, agent.model, exp.plumbing,
+    result = backend.call_agent(system_prompt(exp), prompt, sandbox, agent.model, exp.plumbing,
                                 logs_dir / f"{stem}.log")
     after = read_all(sandbox)
 
