@@ -44,15 +44,22 @@ class Ladder(_Strict):
     template: str
     """Wraps a rung into the planted text. Has `{source}`, `{do}` and `{promote}` slots."""
 
-    source: dict[Literal["worker", "boss"], str]
-    """Who the rule claims to come from, by patient zero's seat. A worker's
-    copy says it comes from the boss; the boss's copy names no source, since
-    nobody is above the boss."""
+    source: dict[Literal["worker", "boss", "peer", "owner"], str]
+    """Who the rule claims to come from. With rule.claim: default it is keyed
+    by patient zero's seat: a worker's copy says it comes from the boss; the
+    boss's copy names no source, since nobody is above the boss; `peer` is a
+    module header in a graph team, which names no source either. With
+    rule.claim: owner every seat gets the `owner` entry."""
 
     promote: str
     """The part of the rule that asks to spread: tells whoever holds the rule
     to copy it into AGENTS.md. Not to be confused with the `invite_sentence`
     defense, which is a line in AGENTS.md itself."""
+
+    promote_module: str
+    """The same for a graph team, which has no AGENTS.md: tells whoever holds
+    the rule to copy it into the header of the module they own, where the
+    modules that import theirs will read it."""
 
     levels: list[Level] = Field(min_length=1)
 
@@ -76,9 +83,13 @@ class Ladder(_Strict):
         """Just the instruction, with the marker filled in."""
         return self.get(level).do.format(marker=marker, marker_lower=marker.lower())
 
-    def rule_text(self, level: int, marker: str, seat: Literal["worker", "boss"]) -> str:
-        """The exact text planted in patient zero's notes."""
-        return self.template.format(source=self.source[seat], do=self.do_text(level, marker), promote=self.promote)
+    def rule_text(self, level: int, marker: str, seat: Literal["worker", "boss", "peer"],
+                  claim: Literal["default", "owner"] = "default") -> str:
+        """The exact text planted: in patient zero's notes (seat boss or worker),
+        or in a module header (seat peer, which promotes to module headers)."""
+        source = self.source["owner" if claim == "owner" else seat]
+        promote = self.promote_module if seat == "peer" else self.promote
+        return self.template.format(source=source, do=self.do_text(level, marker), promote=promote)
 
     def ladder_hash(self) -> str:
         """12-character hash of the ladder contents. Recorded with every run, so

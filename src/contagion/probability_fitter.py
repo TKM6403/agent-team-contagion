@@ -39,6 +39,24 @@ Each is "how often did X happen when it could have", smoothed with Beta(0.5, 0.5
               Recipients are not modelled: the simulator picks one teammate
               uniformly at random.
 
+Graph teams only (trials with the graph columns, see label_exposures.py)
+  read_module an agent reads one module it imports, per import per turn.
+              Rows: all turns, weighted by n_imports. Event: n_imports_read.
+  msg_send    as above, but only on turns where the agent has someone it
+              can message (n_message_targets > 0).
+  module_mark an infected agent's turn puts the rule into its own (clean)
+              module, where its importers can read it.
+              Rows: state_after == I, not module_marked_before.
+              Event: module_marked_after.
+  The other parameters are fitted from graph trials exactly as above, with
+  seat "peer": p_exposure groups such as haiku|peer|module:seed,
+  haiku|peer|module:peer and haiku|peer|message:peer. Independent action
+  over the n marked imports read, 1 - (1 - p)^n, is the dose-response in
+  the number of marked sources. gamma is grouped by whether the agent's own
+  files carried the rule at turn start. file_*/plan_*/read_*_md are fitted
+  but meaningless for graph teams and unused by the graph simulator.
+  meta.json records the team structure(s) of the training trials.
+
 How to read the `group` column (fields joined by "|")
 -----------------------------------------------------
   pi0, file_mark,         <model>|<seat>                 e.g. sonnet|worker
@@ -52,7 +70,8 @@ How to read the `group` column (fields joined by "|")
   p_exposure (backoff)    <model>|*|<channel>:*  when the specific group has fewer
                           than min_n trials; pooled over seats and sources.
   file_clean              <model>|<seat>|<invite_sentence> e.g. sonnet|boss|True
-  p_background, read_*    <model>|<seat>
+  p_background, read_*,   <model>|<seat>
+  module_mark
 
 Decisions (open for contribution)
 ---------------------------------
@@ -88,6 +107,11 @@ Limitations
   definition. Routes the simulator doesn't model separately are folded
   into p_background rather than fitted and dropped.
 - The 0.01 ridge penalty on the logit scale pulls p_exposure slightly toward 0.5.
+- Graph: dose-response is assumed to be independent action. A threshold
+  response (e.g. adopting only from 2+ marked imports) would show up as
+  p_exposure varying with n_marked_sources; it is recorded but not fitted.
+- Graph: read_module pools marked and clean imports; agents may read
+  marked imports more or less often than clean ones.
 
 Outputs: params/params.csv (long: draw, param, group, value) and params/meta.json
 (combine rule, label settings, training runs). A summary table (n, mean, 90%
@@ -161,9 +185,27 @@ def fit_exposure(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict:
     return {g: (float(p[i]), int(n[i]), int(y[X[:, i] > 0].sum())) for g, i in idx.items()}
 
 
+def _sum_rate(df: pd.DataFrame, events: str, tries: str, keys) -> dict:
+    """Beta(0.5, 0.5)-smoothed rate of summed `events` over summed `tries`, by group key."""
+    out = {}
+    for g, grp in df.groupby(keys):
+        g = g if isinstance(g, tuple) else (g,)
+        k, n = int(grp[events].sum()), int(grp[tries].sum())
+        if n:
+            out["|".join(map(str, g))] = ((k + 0.5) / (n + 1.0), n, k)
+    return out
+
+
 def fit_once(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict[str, dict]:
     t = trials
-    return {
+    graph = {}
+    if "n_imports" in t.columns:
+        graph = {
+            "read_module": _sum_rate(t, "n_imports_read", "n_imports", ["model", "seat"]),
+            "module_mark": _rate(t, (t.state_after == "I") & ~t.module_marked_before.astype(bool),
+                                 lambda g: g.module_marked_after.astype(bool), ["model", "seat"]),
+        }
+    return graph | {
         "pi0": _rate(t, t.is_index_first_turn, lambda g: g.state_after == "I", ["model", "seat"]),
         "p_exposure": fit_exposure(t, min_n, counts),
         "p_background": _rate(t, (t.state_before == "S") & (t.n_new_exposures == 0) & t.rule_circulating
@@ -172,7 +214,9 @@ def fit_once(trials: pd.DataFrame, min_n: int, counts: Counter) -> dict[str, dic
         "read_plan_md": _rate(t, t["round"] > 0, lambda g: g.read_plan_md, ["model", "seat"]),
         "gamma": _rate(t, t.state_before == "I", lambda g: g.state_after == "S",
                        ["model", "seat", "file_marked_before"]),
-        "msg_send": _rate(t, t.state_after == "I", lambda g: g.sent_marker_to != "[]", ["model", "seat"]),
+        "msg_send": _rate(t, (t.state_after == "I") & (t.n_message_targets > 0 if "n_message_targets" in t
+                                                        else True),
+                          lambda g: g.sent_marker_to != "[]", ["model", "seat"]),
         "plan_mark": _rate(t, (t.seat == "boss") & (t.state_after == "I") & ~t.plan_marked_before,
                            lambda g: g.plan_marked_after, ["model"]),
         "plan_clean": _rate(t, (t.seat == "boss") & (t.state_after == "S") & t.plan_marked_before,
@@ -225,6 +269,7 @@ def main() -> None:
         "combine": "independent", "uncertainty": "run_bootstrap", "n_draws": args.n_draws, "min_n": args.min_n,
         "training_runs": sorted(map(str, runs)),
         "behaviour_keys": sorted(trials.behaviour_key.unique()),
+        "structures": sorted({json.loads(k).get("structure", "flat") for k in trials.behaviour_key.unique()}),
         "label_settings": json.loads((Path(args.tables) / "settings.json").read_text())
         if (Path(args.tables) / "settings.json").exists() else None}, indent=1))
     print(pd.DataFrame(summ).to_string(index=False))

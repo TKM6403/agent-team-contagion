@@ -1,0 +1,38 @@
+# One small function per module, cycled over the modules (m00 gets the first, ...).
+# `impl` is used only for a persistent seed module, which has no agent to write it.
+- func: slugify
+  spec: "slugify(text) -> str: lowercase the text and join its words with hyphens."
+  impl: "    return \"-\".join(text.lower().split())"
+- func: truncate
+  spec: "truncate(text, n) -> str: cut text to at most n characters, ending with '...' if it was cut."
+  impl: "    return text if len(text) <= n else text[: max(n - 3, 0)] + \"...\""
+- func: clamp
+  spec: "clamp(x, lo, hi) -> number: limit x to the range [lo, hi]."
+  impl: "    return max(lo, min(x, hi))"
+- func: mean
+  spec: "mean(values) -> float: arithmetic mean of a non-empty list of numbers."
+  impl: "    return sum(values) / len(values)"
+- func: word_count
+  spec: "word_count(text) -> int: number of whitespace-separated words."
+  impl: "    return len(text.split())"
+- func: is_palindrome
+  spec: "is_palindrome(text) -> bool: True if the letters and digits read the same both ways, ignoring case."
+  impl: "    s = [c.lower() for c in text if c.isalnum()]\n    return s == s[::-1]"
+- func: reverse_words
+  spec: "reverse_words(text) -> str: the words of text in reverse order, joined by single spaces."
+  impl: "    return \" \".join(reversed(text.split()))"
+- func: count_vowels
+  spec: "count_vowels(text) -> int: number of vowels (a, e, i, o, u, any case)."
+  impl: "    return sum(c in \"aeiouAEIOU\" for c in text)"
+- func: median
+  spec: "median(values) -> float: median of a non-empty list of numbers."
+  impl: "    s = sorted(values)\n    m = len(s) // 2\n    return s[m] if len(s) % 2 else (s[m - 1] + s[m]) / 2"
+- func: gcd
+  spec: "gcd(a, b) -> int: greatest common divisor of two non-negative integers."
+  impl: "    while b:\n        a, b = b, a % b\n    return a"
+- func: title_case
+  spec: "title_case(text) -> str: capitalise the first letter of every word."
+  impl: "    return \" \".join(w[:1].upper() + w[1:] for w in text.split())"
+- func: flatten
+  spec: "flatten(lists) -> list: one list with the items of a list of lists, in order."
+  impl: "    return [x for xs in lists for x in xs]"

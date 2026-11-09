@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Figure for the Results section. Reads only replication/results/.
+"""Figure 2 of the report (fig_results). Reads only committed files, makes no model calls.
 
 Left: Opus boss with the planted note in its own memory file, workers infected at round 8
-per run, one strip per cell (each cell changes one setting from the default).
+per run, one strip per cell (each cell changes one setting from the default). Source:
+replication/results/cells/<cell>/trials.csv.
 Right: the pre-registered forecast for the 3 Haiku + 2 Sonnet target against the five
-held-out runs.
+held-out runs. Source: the frozen distribution in predictions/2026-11-09_mix_3h2s.yaml
+and replication/results/a3_mix/scores.csv.
 
-    python3 replication/fig_results.py   -> report_materials/fig_results.pdf and .png
+Run from the repository root:
+
+    python replication/fig_results.py                  # -> report_materials/fig_results.pdf and .png
+    python replication/fig_results.py --out /tmp/figs  # write somewhere else
 """
+import argparse
 from pathlib import Path
 
 import matplotlib
@@ -15,10 +21,15 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 RES = ROOT / "replication" / "results"
-OUT = ROOT / "report_materials"
+PREDICTION = ROOT / "predictions" / "2026-11-09_mix_3h2s.yaml"
+
+ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+ap.add_argument("--out", type=Path, default=ROOT / "report_materials", help="output folder")
+OUT = ap.parse_args().out
 
 INK, MUTED, GRID = "#1d1b17", "#6b665c", "#d9d4c8"
 BAR, OBS = "#4f7fa8", "#1d1b17"
@@ -65,8 +76,9 @@ ax1.grid(axis="y", color=GRID, linewidth=0.6, zorder=0)
 ax1.set_axisbelow(True)
 
 # Right panel: forecast distribution and observed
-fc = pd.read_csv(RES / "a3_mix" / "forecast.csv")
-dist = fc.infected_final.value_counts(normalize=True).sort_index()
+# The frozen forecast distribution (2,000 simulations). Re-running stages 3 and 4 on
+# replication/results/a3_mix/training_trials.csv reproduces it exactly (same sha256).
+dist = yaml.safe_load(PREDICTION.read_text())["predicted"]["distribution"]
 scores = pd.read_csv(RES / "a3_mix" / "scores.csv")
 obs = scores.observed.value_counts().sort_index()
 xs = np.arange(0, 7)
@@ -89,7 +101,7 @@ ax2.set_axisbelow(True)
 fig.text(0.01, 0.97, "a", fontsize=10, fontweight="bold")
 fig.text(0.55, 0.97, "b", fontsize=10, fontweight="bold")
 fig.tight_layout(w_pad=2.0, rect=(0, 0, 1, 0.98))
-OUT.mkdir(exist_ok=True)
+OUT.mkdir(parents=True, exist_ok=True)
 fig.savefig(OUT / "fig_results.pdf")
 fig.savefig(OUT / "fig_results.png", dpi=220)
 print("wrote", OUT / "fig_results.pdf")

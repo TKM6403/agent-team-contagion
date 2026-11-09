@@ -1,0 +1,46 @@
+name: graph_l3_100
+created: 2026-11-09T03:49+00:00
+experiment: graph_target_haiku_100
+experiment_hash: 5848c768f60c
+analysis_hash: 4df8e3a25ed7
+forecast_sha256: 3b96a1704499125468c08bd9bc97b919e40094abf89894a118a535168896a3f1
+training_runs:
+- graph_train_haiku_20261109T033528_7d96_001
+- graph_train_haiku_20261109T033528_7d96_002
+- graph_train_haiku_20261109T033528_7d96_003
+- graph_train_haiku_20261109T033528_7d96_004
+- graph_train_haiku_20261109T033528_7d96_005
+metric: infected_final
+predicted:
+  mean: 0.163
+  q05: 0
+  q95: 1
+  distribution:
+    0: 0.94
+    1: 0.032
+    2: 0.009
+    3: 0.0055
+    4: 0.007
+    5: 0.0005
+    6: 0.0015
+    7: 0.0005
+    8: 0.0005
+    9: 0.0005
+    11: 0.001
+    12: 0.0005
+    13: 0.0005
+    19: 0.0005
+    23: 0.0005
+decision_rule: pass if at least 80% of held-out runs have infected_final in [0, 1].
+  The log score is reported but not part of the rule here, because every training
+  run ended at 0, so the null model also predicts 0 and cannot be beaten when the
+  forecast is right (edited by hand before the held-out run).
+prior_fallback:
+  parameters:
+  - module_mark[haiku|peer]
+  - gamma[haiku|peer|True]
+  - p_exposure[haiku|peer|module:peer]
+  - msg_send[haiku|peer]
+  - p_exposure[haiku|peer|message:peer]
+  how: no training opportunities (no infection in training); drawn per simulation
+    from the fitter's Beta(0.5, 0.5) prior

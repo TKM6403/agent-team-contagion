@@ -40,12 +40,46 @@ max_turns) must match a training config: the simulator refuses otherwise,
 because the fitted probabilities say nothing about a different rule or setup.
 
 Coverage: if the target needs pi0 or file_clean for a group with no training
-data, the simulator refuses. Other missing groups are warned about: gamma,
+data, the simulator refuses. Graph targets also refuse without read_module or
+p_exposure module:seed (they decide whether anyone is infected at all). Graph
+parameters used only after an infection (module_mark, gamma, msg_send,
+p_exposure module:peer / message:peer) that training never gave a chance,
+because nobody was infected, are drawn per simulation from the Beta(0.5, 0.5)
+prior the fitter smooths with; a WARNING names them, forecast.csv records each
+draw (prior:<param>[<group>] columns) and a pre-registration lists them under
+prior_fallback. Other missing groups are warned about: gamma,
 file_mark and msg_send fall back to the same model pooled over seats; a
 missing p_exposure, plan_mark or plan_clean group is treated as 0.
 
 Output: forecast.csv, one row per simulation: infected_final, ever_infected,
 agents_md_marked_final.
+
+Graph teams (team.structure: graph)
+-----------------------------------
+The import graph is rebuilt from the target config (team/graph.py), so the
+target may differ from training in graph size (n_agents), mean_imports,
+graph seed, n_rounds and persistent_seed: e.g. fit on 20-module runs and
+forecast 100 modules. Model, rule, claim and structure are behavioural and
+must match (a graph target is refused for flat-trained params and vice
+versa: structure is part of behaviour_key). Rounds are synchronous, as in
+stage 1 (play_rounds): every agent sees the start-of-round state and all
+changes land at the end of the round. One simulated turn for agent a:
+  1. Each marked module a imports is read with read_module; a read counts
+     as an exposure module:seed (the seed module, while it carries the
+     planted text) or module:peer if this rule text is new to a (memory as
+     above; a module's text changes when the rule is written into it).
+     Each rule-carrying message delivered this round is message:peer.
+  2. Susceptible a adopts with 1 - prod_k (1 - p_k) over those exposures
+     (independent action = dose-response in the number of marked sources);
+     with none, if a already knows the rule, with p_background. The live
+     seed's agent uses pi0 on its first turn.
+  3. Infected a recovers with gamma (group <model>|peer|True), which also
+     clears its module. A newly infected agent, or an infected one with a
+     clean module, puts the rule into its module with module_mark.
+  4. Infected a sends one rule-carrying message to a random graph neighbour
+     (msg_send), delivered next round.
+  A persistent seed module is marked in every round and is not an agent.
+infected_final counts agents, so a persistent seed is never counted.
 
 Pre-registration (--preregister NAME): also writes predictions/<date>_<NAME>.yaml
 with the forecast's distribution of infected_final, its 90% interval, the
@@ -70,6 +104,29 @@ Limitations
 - Adoption depends only on exposures (and seat and model), not on team
   context such as which boss model is in charge. A context effect in real
   runs is exactly what stage 6 is meant to catch.
+- Every simulated rule-carrying message counts as a new exposure, even
+  under exposure_memory new_only, while stage 2 does not count a repeat of
+  identical message text as new (flat and graph teams alike).
+- Graph: a module gets a new rule-text version every time it goes from
+  clean to marked, whereas stage 2 keys on marker_hash, so re-writing the
+  same rule text after recovery counts as a new exposure only here.
+- Graph: a live seed's agent that doesn't write its module on turn 1 is
+  labelled susceptible by stage 2 while its header stays marked; the
+  simulator clears the hub instead.
+- Graph: there is no "infected agent removes the rule from its module but
+  keeps it in its test file" transition, so modules_marked_final is slightly
+  over-predicted; infected_final is unaffected.
+- Graph: prior-drawn parameters (see Coverage) carry no information; a
+  forecast that depends on them says only "if anyone is infected, anything
+  in the prior range may follow".
+- Graph: a module is marked only while its agent is infected; an infected
+  agent whose rule sits only in its test file (invisible to importers) is
+  covered by module_mark < 1. Test files are never read by neighbours.
+- Graph: read_module is one rate for every import, marked or not, and does
+  not depend on how many modules an agent imports.
+- Graph: a forecast for a bigger graph assumes per-exposure rates carry over
+  across graph size; prompts list imports and importers, so a hub agent's
+  prompt is longer at n=100 than any agent's at n=20.
 """
 from __future__ import annotations
 
@@ -81,14 +138,21 @@ import numpy as np
 import pandas as pd
 
 from contagion.config import load_experiment
+from contagion.team.graph import graph_of
 from contagion.team.run import play_rounds
-from contagion.team.workspace import Agent, index_agent, team_of
+from contagion.team.workspace import Agent, index_agent, is_graph, message_targets, team_of
 
 
 class Params:
     def __init__(self, draws: pd.DataFrame, draw: int):
         d = draws[draws.draw == draw]
         self.v = {(r.param, r.group): r.value for r in d.itertuples()}
+
+    def with_values(self, extra: dict) -> "Params":
+        """A copy with some (param, group) values set, e.g. prior draws."""
+        q = object.__new__(Params)
+        q.v = self.v | extra
+        return q
 
     def get(self, param: str, group: str, fallback: str | None = None) -> float:
         if (param, group) in self.v:
@@ -108,6 +172,8 @@ def _src(writer: str) -> str:
 
 def needed_groups(exp) -> list[tuple[str, str, str | None]]:
     """(param, group, fallback group) the target config can use."""
+    if is_graph(exp):
+        return graph_needed_groups(exp)
     need = []
     seed = index_agent(exp)
     for a in team_of(exp):
@@ -128,14 +194,50 @@ def needed_groups(exp) -> list[tuple[str, str, str | None]]:
     return list(dict.fromkeys(need))
 
 
-def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
-    """(missing required groups -> refuse, missing optional groups -> warn and use a fallback)."""
+def graph_needed_groups(exp) -> list[tuple[str, str, str | None]]:
+    model = exp.team.graph.model
+    g, fb = f"{model}|peer", f"{model}|*"
+    need = [("pi0", g, None)] if index_agent(exp) else []
+    need += [("read_module", g, fb), ("module_mark", g, fb), ("gamma", f"{g}|True", fb),
+             ("p_background", g, fb), ("p_exposure", f"{g}|module:peer", f"{model}|*|module:*")]
+    if exp.rule.persistent_seed or index_agent(exp):
+        need.append(("p_exposure", f"{g}|module:seed", f"{model}|*|module:*"))
+    if exp.team.messaging:
+        need += [("msg_send", g, fb), ("p_exposure", f"{g}|message:peer", f"{model}|*|message:*")]
+    return need
+
+
+def _after_infection(param: str, group: str) -> bool:
+    """Graph parameters that only act once some agent is infected."""
+    return param in ("module_mark", "gamma", "msg_send") or \
+        (param == "p_exposure" and group.endswith(("|module:peer", "|message:peer")))
+
+
+def _missing(exp, draws: pd.DataFrame) -> list[tuple[str, str]]:
     have = set(zip(draws.param, draws.group))
+    return [(param, g) for param, g, fb in needed_groups(exp)
+            if (param, g) not in have and not (fb and (param, fb) in have)]
+
+
+def prior_groups(exp, draws: pd.DataFrame) -> list[tuple[str, str]]:
+    """Graph only: missing groups used only after an infection. Training with no
+    infection gives them no opportunities, so they are drawn per simulation from
+    the fitter's Beta(0.5, 0.5) prior instead of refusing the forecast."""
+    if not is_graph(exp):
+        return []
+    return [(param, g) for param, g in _missing(exp, draws) if _after_infection(param, g)]
+
+
+def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
+    """(missing required groups -> refuse, missing optional groups -> warn and use a fallback).
+    Groups in prior_groups are neither: they are drawn from the prior."""
     refuse, warn = [], []
-    for param, g, fb in needed_groups(exp):
-        if (param, g) in have or (fb and (param, fb) in have):
+    prior = set(prior_groups(exp, draws))
+    for param, g in _missing(exp, draws):
+        if (param, g) in prior:
             continue
-        required = param == "pi0" or (param == "file_clean" and "|boss|" in g)
+        required = param == "pi0" or (param == "file_clean" and "|boss|" in g) \
+            or param == "read_module" or g.endswith("|module:seed")
         (refuse if required else warn).append(f"{param}[{g}]")
     return refuse, warn
 
@@ -143,12 +245,105 @@ def check_coverage(exp, draws: pd.DataFrame) -> tuple[list[str], list[str]]:
 def pooled(draws: pd.DataFrame) -> pd.DataFrame:
     """Add model|* groups for gamma, file_mark, msg_send (mean over seats), used as a fallback."""
     sub = draws[draws.param.isin(["gamma", "file_mark", "msg_send", "p_background",
-                                  "read_agents_md", "read_plan_md"])].copy()
+                                  "read_agents_md", "read_plan_md", "read_module", "module_mark"])].copy()
     sub["group"] = sub.group.str.split("|").str[0] + "|*"
     return pd.concat([draws, sub.groupby(["draw", "param", "group"], as_index=False).value.mean()])
 
 
+def simulate_graph_once(exp, P: Params, rng: np.random.Generator, memory: str = "new_only") -> dict:
+    """One simulated graph-team run (see module docstring, "Graph teams")."""
+    G = graph_of(exp)
+    team = team_of(exp)
+    seed = index_agent(exp)                       # live seed's agent, or None
+    hub, persistent = G.hub, exp.rule.persistent_seed
+    infected = {a.name: False for a in team}
+    marked = {m: m == hub for m in G.names}       # module carries the rule (what importers read)
+    version = {m: 0 for m in G.names}             # rule-text id per module, for new_only
+    original = {m: m == hub for m in G.names}     # still the planted text (source "seed")
+    seen = {a.name: set() for a in team}
+    knows = {seed} if seed else set()
+    inbox = {a.name: [] for a in team}
+    targets = {a.name: message_targets(exp, a.name) if exp.team.messaging else [] for a in team}
+    imports = {a.name: G.imports_of(a.name) for a in team}
+    ever = set()
+    frozen: dict = {}        # start-of-round state every turn reads
+    nxt: dict = {}           # agent -> (infected, module marked) at the end of the round
+    outbox: dict = {}        # recipient -> rule-carrying messages sent this round
+
+    def p(param, group, fb=None):
+        try:
+            return P.get(param, group, fb)
+        except KeyError:
+            return 0.0
+
+    def start_round(rnd):
+        if persistent:
+            marked[hub], original[hub] = True, True
+        frozen.update(marked=dict(marked), version=dict(version), original=dict(original), inbox=dict(inbox))
+        for k in inbox:
+            inbox[k] = []
+        nxt.clear()
+        outbox.clear()
+
+    def take_turn(rnd: int, a: Agent) -> bool:
+        name, model = a.name, a.model
+        g, fb = f"{model}|peer", f"{model}|*"
+        inf, mod = infected[name], frozen["marked"][name]
+        escape, n_new = 1.0, 0
+        for m in imports[name]:
+            if frozen["marked"][m] and rng.random() < p("read_module", g, fb):
+                key = (m, frozen["version"][m])
+                if memory == "all" or key not in seen[name]:
+                    src = "seed" if frozen["original"][m] else "peer"
+                    escape *= 1 - p("p_exposure", f"{g}|module:{src}", f"{model}|*|module:*")
+                    n_new += 1
+                seen[name].add(key)
+        for _ in frozen["inbox"][name]:
+            escape *= 1 - p("p_exposure", f"{g}|message:peer", f"{model}|*|message:*")
+            n_new += 1
+        if rnd == 1 and name == seed:
+            inf = rng.random() < P.get("pi0", g)
+            mod = inf  # the seed's agent keeps or drops the planted header
+        elif not inf:
+            if n_new:
+                knows.add(name)
+                inf = rng.random() < 1 - escape
+            elif name in knows:  # same turns stage 2 counts as background
+                inf = rng.random() < p("p_background", g, fb)
+        elif rng.random() < p("gamma", f"{g}|True", fb):
+            inf, mod = False, False
+        if inf and not mod and rng.random() < p("module_mark", g, fb):
+            mod = True
+        if inf and targets[name] and rng.random() < p("msg_send", g, fb):
+            outbox.setdefault(str(rng.choice(targets[name])), []).append("peer")
+        nxt[name] = (inf, mod)
+        return True
+
+    def end_round(rnd):
+        for a in team:
+            inf, mod = nxt[a.name]
+            infected[a.name] = inf
+            if inf:
+                ever.add(a.name)
+            if mod != marked[a.name]:
+                marked[a.name] = mod
+                # Same rule as stage 2: the seed module is "original" while it carries the
+                # planted line. Only the planted text circulates here, so a live seed's agent
+                # that re-marks its module is taken to restore the planted line.
+                original[a.name] = mod and a.name == hub
+                version[a.name] += int(mod)
+        for to, msgs in outbox.items():
+            inbox[to] += msgs
+
+    play_rounds(exp, take_turn, start_round, end_round)
+    return {"infected_final": sum(infected.values()), "ever_infected": len(ever),
+            "agents_md_marked_final": False,
+            "modules_marked_final": sum(marked[m] for m in G.names if not (persistent and m == hub))}
+
+
 def simulate_once(exp, P: Params, rng: np.random.Generator, memory: str = "new_only") -> dict:
+    if is_graph(exp):
+        return simulate_graph_once(exp, P, rng, memory)
     team = team_of(exp)
     seed = index_agent(exp)
     infected = {a.name: False for a in team}
@@ -238,7 +433,8 @@ def run_forecast(exp, params_dir: Path, n_sims: int, seed: int = 0) -> pd.DataFr
     keys = meta.get("behaviour_keys") or []
     if behaviour_key(exp) not in keys:
         raise SystemExit("target differs from training in a behavioural knob (rule level, marker, task, "
-                         f"backend, effort, max_turns).\n target:   {behaviour_key(exp)}\n training: {keys}")
+                         f"backend, effort, max_turns, team structure, claim).\n target:   {behaviour_key(exp)}"
+                         f"\n training: {keys}")
     draws = pooled(pd.read_csv(params_dir / "params.csv"))
     refuse, warn = check_coverage(exp, draws)
     if refuse:
@@ -246,15 +442,26 @@ def run_forecast(exp, params_dir: Path, n_sims: int, seed: int = 0) -> pd.DataFr
     if warn:
         print("WARNING: no training data for " + ", ".join(warn)
               + " (treated as 0 unless a same-model fallback exists)")
+    prior = prior_groups(exp, draws)
+    if prior:
+        print("WARNING: no training opportunities for " + ", ".join(f"{p}[{g}]" for p, g in prior)
+              + " (only used after an infection, and training had none): each simulation draws them "
+              "from the Beta(0.5, 0.5) prior; recorded in forecast columns prior:<param>[<group>]")
     memory = ((meta.get("label_settings") or {}).get("analysis") or {}).get("exposure_memory", "new_only")
     rng = np.random.default_rng(seed)
+    prior_rng = np.random.default_rng([seed, 1])  # separate stream: the main one is unchanged
     ids = draws.draw.unique()
     cache: dict[int, Params] = {}
     rows = []
     for s in range(n_sims):
         d = int(rng.choice(ids))
         P = cache.setdefault(d, Params(draws, d))
-        rows.append({"sim": s, "draw": d, **simulate_once(exp, P, rng, memory)})
+        extra = {}
+        if prior:
+            vals = {k: float(prior_rng.beta(0.5, 0.5)) for k in prior}
+            P = P.with_values(vals)
+            extra = {f"prior:{p}[{g}]": round(v, 6) for (p, g), v in vals.items()}
+        rows.append({"sim": s, "draw": d, **simulate_once(exp, P, rng, memory), **extra})
     return pd.DataFrame(rows)
 
 
@@ -282,6 +489,11 @@ def preregister(exp, fc: pd.DataFrame, fc_path: Path, params_dir: Path, name: st
         "decision_rule": f"pass if at least 80% of held-out runs have infected_final in [{lo}, {hi}] "
                          f"and the mean log score beats the null model",
     }
+    prior_cols = [c[len("prior:"):] for c in fc.columns if c.startswith("prior:")]
+    if prior_cols:
+        pred["prior_fallback"] = {"parameters": prior_cols,
+                                  "how": "no training opportunities (no infection in training); drawn per "
+                                         "simulation from the fitter's Beta(0.5, 0.5) prior"}
     out = ROOT / "predictions" / f"{datetime.now(timezone.utc):%Y-%m-%d}_{name}.yaml"
     out.parent.mkdir(exist_ok=True)
     out.write_text(yaml.safe_dump(pred, sort_keys=False))
@@ -305,9 +517,10 @@ def main() -> None:
     if args.preregister:
         preregister(exp, fc, Path(args.out), Path(args.params), args.preregister)
     s = fc.infected_final
+    tail = (f"modules marked at end: mean {fc.modules_marked_final.mean():.2f}" if "modules_marked_final" in fc
+            else f"AGENTS.md marked at end {fc.agents_md_marked_final.mean():.0%}")
     print(f"{exp.name}: infected at round {exp.n_rounds}: mean {s.mean():.2f}, "
-          f"90% [{s.quantile(.05):.0f}, {s.quantile(.95):.0f}]; AGENTS.md marked at end "
-          f"{fc.agents_md_marked_final.mean():.0%} -> {args.out}")
+          f"90% [{s.quantile(.05):.0f}, {s.quantile(.95):.0f}]; {tail} -> {args.out}")
 
 
 if __name__ == "__main__":
